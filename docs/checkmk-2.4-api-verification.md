@@ -51,7 +51,14 @@ $ docker compose -f .devcontainer/docker-compose.yml exec checkmk \
 **Use this import:**
 ```python
 from cmk.agent_based.v2 import (
-    AgentSection, CheckPlugin, Result, Service, State, Metric, StringTable, check_levels
+    AgentSection,
+    CheckPlugin,
+    Result,
+    Service,
+    State,
+    Metric,
+    StringTable,
+    check_levels,
 )
 ```
 
@@ -215,9 +222,7 @@ from cmk.base.plugins.bakery.bakery_api.v1 import *  # noqa: F403
 
 **Use this import** (canonical, non-CEE-specific path):
 ```python
-from cmk.base.plugins.bakery.bakery_api.v1 import (
-    OS, Plugin, PluginConfig, FileGenerator, register
-)
+from cmk.base.plugins.bakery.bakery_api.v1 import OS, Plugin, PluginConfig, FileGenerator, register
 ```
 
 ---
@@ -357,16 +362,18 @@ available commands:
 
 **Example manifest structure** (from `mkp template synthetic_monitoring`):
 ```python
-{'author': 'Add your name here',
- 'description': 'Please add a description here',
- 'download_url': 'https://example.com/synthetic_monitoring/',
- 'files': {},
- 'name': 'synthetic_monitoring',
- 'title': 'Title of synthetic_monitoring',
- 'version': '1.0.0',
- 'version.min_required': '2.4.0p32',
- 'version.packaged': 'cmk-mkp-tool 1.0.0',
- 'version.usable_until': None}
+{
+    "author": "Add your name here",
+    "description": "Please add a description here",
+    "download_url": "https://example.com/synthetic_monitoring/",
+    "files": {},
+    "name": "synthetic_monitoring",
+    "title": "Title of synthetic_monitoring",
+    "version": "1.0.0",
+    "version.min_required": "2.4.0p32",
+    "version.packaged": "cmk-mkp-tool 1.0.0",
+    "version.usable_until": None,
+}
 ```
 
 ---

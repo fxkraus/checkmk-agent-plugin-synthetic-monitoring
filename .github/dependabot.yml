@@ -30,6 +30,11 @@ updates:
           - "patch"
     labels:
       - "dependencies"
+    ignore:
+      # The playwright pin must match the Chromium build in the Playwright base
+      # image (executor Containerfiles, Makefile, dev container); bumps are a
+      # deliberate step that moves all of them together.
+      - dependency-name: "playwright"
 
   # ── Docker (dev container: Python base image + uv) ─────────────────────────
   - package-ecosystem: "docker"
