@@ -1,0 +1,29 @@
+# Executor image, Playwright-supported variant: the official Playwright image (Ubuntu 24.04), the
+# platform Playwright tests and supports. The default image is the UBI 9 one (Containerfile).
+# Build from the repo root after `make wheelhouse`: `make image VARIANT=playwright`.
+# Air-gapped: mirror the Playwright image to the internal registry and pass it, pinned by
+# digest, as PLAYWRIGHT_IMAGE. Its version must match the playwright pin in
+# executor/pyproject.toml. noble = Ubuntu 24.04 with Python 3.12 (jammy ships 3.10, too old).
+# Browsers are vendored at /ms-playwright.
+ARG PLAYWRIGHT_IMAGE=mcr.microsoft.com/playwright/python:v1.49.0-noble
+FROM ${PLAYWRIGHT_IMAGE}
+
+ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright \
+    PIP_NO_INDEX=1 \
+    PIP_ROOT_USER_ACTION=ignore \
+    SYNMON_JOURNEYS_DIR=/journeys \
+    SYNMON_SPOOL_DIR=/var/lib/synmon/spool \
+    SYNMON_ARTIFACTS_DIR=/var/lib/synmon/artifacts \
+    SYNMON_HEARTBEAT_PATH=/var/lib/synmon/heartbeat.json
+
+# Offline install from the wheelhouse only: third-party wheels must match the uv.lock hashes;
+# the project wheels carry the vendored web-vitals script and its Apache-2.0 LICENSE.
+# Bind-mounted instead of copied, so the wheels do not end up in an image layer.
+RUN --mount=type=bind,source=wheelhouse,target=/wheelhouse \
+    pip install --no-cache-dir --find-links /wheelhouse --require-hashes \
+        --requirement /wheelhouse/requirements.txt \
+    && pip install --no-cache-dir --no-deps /wheelhouse/synmon_contract-*.whl \
+        /wheelhouse/synmon_executor-*.whl
+
+USER 1000:1000
+ENTRYPOINT ["python", "-m", "synmon_executor.runner"]

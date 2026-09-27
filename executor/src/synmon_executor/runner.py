@@ -3,13 +3,14 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import os
 import time
 from pathlib import Path
 
 from synmon_contract.models import SCHEMA_VERSION, Heartbeat
 
-from synmon_executor.core import run_journey_resilient, run_login, skipped_result
+from synmon_executor.core import run_journey_resilient, run_login, unknown_result
 from synmon_executor.discovery import load_journeys
 from synmon_executor.heartbeat import write_heartbeat_atomic
 from synmon_executor.sdk import clear_registry, registered_journeys, registered_logins
@@ -53,17 +54,27 @@ async def run_all(
     def _out_of_budget() -> bool:
         return deadline is not None and time.monotonic() >= deadline
 
-    def _skip(obj) -> None:
-        nonlocal journeys_skipped
-        journeys_skipped += 1
-        result = skipped_result(
+    def _write_unknown(obj, reason: str) -> None:
+        result = unknown_result(
             obj,
             worker_id=worker_id,
             executor=EXECUTOR,
             executor_version=executor_version,
-            reason=f"run budget of {run_budget_s}s exhausted",
+            reason=reason,
         )
-        write_result_atomic(result, spool_dir)
+        # Best effort: if the spool itself is unwritable, the heartbeat still reports the run.
+        with contextlib.suppress(Exception):
+            write_result_atomic(result, spool_dir)
+
+    def _skip(obj) -> None:
+        nonlocal journeys_skipped
+        journeys_skipped += 1
+        _write_unknown(obj, f"skipped, run budget of {run_budget_s}s exhausted")
+
+    def _executor_error(obj, exc: Exception) -> None:
+        nonlocal journeys_failed
+        journeys_failed += 1
+        _write_unknown(obj, f"executor error: {type(exc).__name__}: {exc}")
 
     def _retries(obj) -> int:
         return obj.retries if obj.retries is not None else default_retries
@@ -78,6 +89,7 @@ async def run_all(
         journeys = registered_journeys()
         async with browser_session(artifacts_dir) as make_session:
             storage_states: dict[str, dict] = {}
+            failed_logins: dict[str, str] = {}
             for ld in logins:
                 if _out_of_budget():
                     _skip(ld)
@@ -98,13 +110,21 @@ async def run_all(
                     write_result_atomic(result, spool_dir)
                     if result.status >= 2:
                         journeys_failed += 1
+                        failed_logins[ld.target_host] = ld.name
                     elif state is not None:
                         storage_states[ld.target_host] = state
-                except Exception:
-                    journeys_failed += 1
+                except Exception as exc:
+                    _executor_error(ld, exc)
+                    failed_logins[ld.target_host] = ld.name
             for jd in journeys:
                 if _out_of_budget():
                     _skip(jd)
+                    continue
+                if jd.target_host in failed_logins:
+                    # Unauthenticated runs would only repeat the login outage as extra CRITs.
+                    _write_unknown(
+                        jd, f"skipped, login '{failed_logins[jd.target_host]}' did not succeed"
+                    )
                     continue
                 journeys_run += 1
                 try:
@@ -123,8 +143,8 @@ async def run_all(
                     write_result_atomic(result, spool_dir)
                     if result.status >= 2:
                         journeys_failed += 1
-                except Exception:
-                    journeys_failed += 1
+                except Exception as exc:
+                    _executor_error(jd, exc)
     finally:
         hb = Heartbeat(
             schema_version=SCHEMA_VERSION,

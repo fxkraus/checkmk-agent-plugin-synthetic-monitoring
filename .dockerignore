@@ -1,0 +1,4 @@
+# The executor image is built from the wheelhouse alone (docker reads .dockerignore; podman
+# and buildah fall back to it when there is no .containerignore).
+*
+!wheelhouse/

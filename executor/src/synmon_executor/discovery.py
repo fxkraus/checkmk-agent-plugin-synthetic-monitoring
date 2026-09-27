@@ -6,6 +6,8 @@ import importlib.util
 import sys
 from pathlib import Path
 
+from synmon_executor.sdk import registered_journeys, registered_logins, truncate_registry
+
 
 def load_journeys(journeys_dir: Path) -> tuple[list[str], list[str]]:
     """Import every journey module; return (loaded module names, per-file load errors).
@@ -23,10 +25,13 @@ def load_journeys(journeys_dir: Path) -> tuple[list[str], list[str]]:
             continue
         module = importlib.util.module_from_spec(spec)
         sys.modules[module_name] = module
+        before = len(registered_journeys()), len(registered_logins())
         try:
             spec.loader.exec_module(module)
         except Exception as exc:
             sys.modules.pop(module_name, None)
+            # Decorators that ran before the failure must not leave half-configured journeys.
+            truncate_registry(*before)
             errors.append(f"{path.name}: {type(exc).__name__}: {exc}")
             continue
         loaded.append(module_name)

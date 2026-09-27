@@ -3,7 +3,7 @@
 # /etc/systemd/system/synmon-executor.timer (a plain timer — Quadlet does not process .timer files).
 [Unit]
 Description=Run the synthetic-monitoring executor on a schedule
-Documentation=https://github.com/fxkraus/checkmk-synmon
+Documentation=https://github.com/fxkraus/checkmk-agent-plugin-synthetic-monitoring
 
 [Timer]
 # Fixed wall-clock cadence (not relative to the last run), so every result covers the same slice

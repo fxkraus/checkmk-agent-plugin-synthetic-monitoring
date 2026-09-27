@@ -7,7 +7,7 @@
   "version.packaged": "synmon-build",
   "version.usable_until": null,
   "author": "Felix Kraus",
-  "download_url": "https://github.com/fxkraus/checkmk-synmon",
+  "download_url": "https://github.com/fxkraus/checkmk-agent-plugin-synthetic-monitoring",
   "files": {
     "cmk_addons_plugins": [
       "synmon/lib/parsing.py",

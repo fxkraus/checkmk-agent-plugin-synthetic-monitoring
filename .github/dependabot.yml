@@ -7,8 +7,9 @@
 # updates and all major updates need a manual review.
 #
 # Not managed here, on purpose:
-# - executor/Containerfile: its base image is an ARG pinned by digest and
-#   mirrored to the internal registry (air-gap); bumps are a deliberate step.
+# - executor/Containerfile: its base image is an ARG, overridden at build time
+#   with the internal mirror pinned by digest (air-gap), and must match the
+#   playwright pin; bumps are a deliberate step.
 #   Dependabot also only detects Dockerfile* names and literal FROM tags.
 # - .devcontainer/docker-compose.yml: the Checkmk image uses the floating
 #   2.5.0-latest tag (Dependabot would propose daily builds as "patch"

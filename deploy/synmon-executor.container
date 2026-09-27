@@ -4,7 +4,7 @@
 # The .timer triggers it; it deliberately has no [Install] so it does not start at boot.
 [Unit]
 Description=Synthetic Monitoring executor (Playwright user journeys)
-Documentation=https://github.com/fxkraus/checkmk-synmon
+Documentation=https://github.com/fxkraus/checkmk-agent-plugin-synthetic-monitoring
 After=network-online.target
 Wants=network-online.target
 

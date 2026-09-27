@@ -114,7 +114,8 @@ jobs:
       - name: Install
         run: |
           pip install --quiet uv==0.5.11
-          uv pip install --system ./contract ./executor pytest
+          # Keep the pytest pin in sync with the "test" dependency group in pyproject.toml
+          uv pip install --system ./contract ./executor pytest==9.0.3
           python -m playwright install --with-deps chromium
       - name: Start mock site
         run: |
@@ -127,6 +128,30 @@ jobs:
           MOCKSITE_URL: http://localhost:8080
         run: pytest tests/integration -q
 
+  # Builds each executor image variant the air-gapped way (offline install from the hashed
+  # wheelhouse) and runs it hardened, as deploy/synmon-executor.container does, against the
+  # mock site: ubi9 (default, Red Hat UBI 9) and playwright (the Playwright-supported image).
+  image:
+    name: executor image (${{ matrix.variant }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        variant: [ubi9, playwright]
+    env:
+      VARIANT: ${{ matrix.variant }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+
+      - name: Build wheelhouse
+        run: make wheelhouse
+
+      - name: Build image
+        run: make image
+
+      - name: Run image against the mock site
+        run: make image-test
+
   # Merge Dependabot minor/patch updates of the uv and pre-commit ecosystems
   # once every other job has passed. Docker and GitHub Actions updates and all
   # major updates are left open for manual review.
@@ -137,7 +162,7 @@ jobs:
   # this keeps the gate in the repository instead of in repository settings.
   dependabot-merge:
     name: Auto-merge Dependabot (uv / pre-commit, minor + patch)
-    needs: [lint, secrets, checks, pytest, integration]
+    needs: [lint, secrets, checks, pytest, integration, image]
     runs-on: ubuntu-latest
     if: github.event_name == 'pull_request' && github.event.pull_request.user.login == 'dependabot[bot]'
     permissions:

@@ -37,3 +37,16 @@ def test_broken_module_is_reported_and_does_not_block_others(tmp_path):
     assert len(loaded) == 1
     (err,) = errors
     assert err.startswith("a_broken.py: SyntaxError")
+
+
+def test_journeys_registered_by_a_module_that_then_fails_are_dropped(tmp_path):
+    clear_registry()
+    (tmp_path / "half.py").write_text(
+        JOURNEY_SRC + "\nraise RuntimeError('config missing')\n", encoding="utf-8"
+    )
+
+    loaded, errors = load_journeys(tmp_path)
+
+    assert loaded == []
+    assert errors == ["half.py: RuntimeError: config missing"]
+    assert registered_journeys() == []

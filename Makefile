@@ -3,7 +3,21 @@ RUN := $(COMPOSE) run --rm dev
 
 CHECKMK_IMAGE ?= checkmk/check-mk-ultimate:2.5.0-latest
 
-.PHONY: test test-checkmk lint typecheck secrets format schema mkp checkmk-up checkmk-down integration
+# Executor image (see deploy/README.md). CONTAINER=podman works too.
+# VARIANT=ubi9 (default, Red Hat UBI 9) or playwright (the Playwright-supported Ubuntu image).
+CONTAINER ?= docker
+VARIANT ?= ubi9
+EXECUTOR_IMAGE ?= synmon-executor:$(VARIANT)
+PLAYWRIGHT_IMAGE ?= mcr.microsoft.com/playwright/python:v1.49.0-noble
+BASE_IMAGE ?= registry.access.redhat.com/ubi9/ubi-minimal:latest
+IMAGE_PLATFORM ?= linux/amd64
+WHEEL_ARCH ?= x86_64
+CONTAINERFILE_ubi9 := executor/Containerfile
+CONTAINERFILE_playwright := executor/Containerfile.playwright
+CONTAINERFILE = $(or $(CONTAINERFILE_$(VARIANT)),$(error VARIANT must be ubi9 or playwright))
+
+.PHONY: test test-checkmk lint typecheck secrets format schema mkp checkmk-up checkmk-down integration \
+	wheelhouse image image-test
 
 test:
 	$(RUN) uv run pytest -q
@@ -14,6 +28,18 @@ test-checkmk:
 
 mkp:
 	$(RUN) uv run python scripts/build_mkp.py
+
+# Connected side: collect the wheels the offline image build installs from.
+wheelhouse:
+	$(COMPOSE) run --rm -e WHEEL_ARCH=$(WHEEL_ARCH) dev scripts/build_wheelhouse.sh
+
+# Needs only ./wheelhouse and the Playwright base image, so it also runs air-gapped.
+image:
+	$(CONTAINER) build --platform $(IMAGE_PLATFORM) --build-arg PLAYWRIGHT_IMAGE=$(PLAYWRIGHT_IMAGE) \
+		--build-arg BASE_IMAGE=$(BASE_IMAGE) -f $(CONTAINERFILE) -t $(EXECUTOR_IMAGE) .
+
+image-test:
+	CONTAINER=$(CONTAINER) scripts/test_image.sh $(EXECUTOR_IMAGE)
 
 # pre-commit runs the same hooks as the CI lint job (ruff, shellcheck, hadolint, actionlint,
 # gitleaks, hygiene); mypy needs the workspace deps, so it runs separately.
