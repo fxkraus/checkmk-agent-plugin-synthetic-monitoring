@@ -13,6 +13,12 @@ state="$(mktemp -d)"
 cleanup() {
     "${engine}" rm --force "${name}-site" >/dev/null 2>&1 || true
     "${engine}" network rm "${name}" >/dev/null 2>&1 || true
+    # spool/ and artifacts/ belong to the container user; on a Linux host running as another uid
+    # (the CI runner) only that user can empty them.
+    "${engine}" run --rm --user 1000:1000 --volume "${state}:/state" --entrypoint python3 \
+        "${image}" -c 'import pathlib, shutil
+for p in pathlib.Path("/state").iterdir():
+    shutil.rmtree(p) if p.is_dir() else p.unlink()' >/dev/null 2>&1 || true
     rm -rf "${state}"
 }
 trap cleanup EXIT
