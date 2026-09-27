@@ -36,7 +36,7 @@ services:
     command: python tests/integration/mocksite/mocksite.py 8080
 
   playwright:
-    image: mcr.microsoft.com/playwright/python:v1.49.0-jammy
+    image: mcr.microsoft.com/playwright/python:v1.49.0-noble
     environment:
       UV_LINK_MODE: copy
     volumes:

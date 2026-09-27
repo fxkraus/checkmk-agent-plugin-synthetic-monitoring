@@ -28,7 +28,7 @@ hadolint:
   image: hadolint/hadolint:v2.15.1-debian
   before_script: []
   script:
-    - hadolint --config .hadolint.yaml executor/Containerfile .devcontainer/Dockerfile
+    - hadolint --config .hadolint.yaml executor/Containerfile executor/Containerfile.playwright .devcontainer/Dockerfile
 
 schema-sync:
   stage: schema

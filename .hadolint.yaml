@@ -9,3 +9,6 @@ ignored:
   # whenever the distro publishes updates; the base image is pinned and
   # updated by Dependabot instead.
   - DL3008  # apt-get install without version pins
+  # Same for the UBI 9 executor image: its RPMs follow the base image, which the
+  # deployed build pins by digest; pinned RPM versions vanish from the repos.
+  - DL3041  # dnf/microdnf install without version pins

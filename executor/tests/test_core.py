@@ -277,7 +277,7 @@ def test_deadline_stops_retries():
     assert result.attempts == 1
 
 
-def test_deadline_caps_attempt_timeout():
+def test_attempt_cut_short_by_run_budget_is_unknown_not_crit():
     async def fn(page, ctx):  # noqa: ARG001
         await asyncio.sleep(5)
 
@@ -295,5 +295,89 @@ def test_deadline_caps_attempt_timeout():
             deadline=time.monotonic() + 0.05,
         )
     )
+    assert result.status == 3
+    assert result.error is None
+    assert "run budget" in result.summary
+
+
+def test_own_timeout_within_budget_stays_crit():
+    async def fn(page, ctx):  # noqa: ARG001
+        await asyncio.sleep(5)
+
+    result = asyncio.run(
+        run_journey_resilient(
+            _jd(fn),
+            _factory(_Fake()),
+            None,
+            worker_id="w",
+            executor="playwright",
+            executor_version="x",
+            retries=0,
+            timeout_s=0.05,
+            sleep=_noop_sleep,
+            deadline=time.monotonic() + 60.0,
+        )
+    )
     assert result.status == 2
     assert result.error is not None and result.error.type == "TimeoutError"
+
+
+def test_no_retry_when_backoff_would_cross_deadline():
+    clock = [0.0]
+
+    async def fn(page, ctx):  # noqa: ARG001
+        clock[0] += 10.0
+        raise RuntimeError("down")
+
+    async def advancing_sleep(seconds):
+        clock[0] += seconds
+
+    result = asyncio.run(
+        run_journey_resilient(
+            _jd(fn),
+            _factory(_Fake()),
+            None,
+            worker_id="w",
+            executor="playwright",
+            executor_version="x",
+            retries=1,
+            timeout_s=None,
+            mono=lambda: clock[0],
+            sleep=advancing_sleep,
+            backoff_base=10.0,
+            deadline=15.0,
+        )
+    )
+    assert result.status == 2
+    assert result.error is not None and result.error.message == "down"
+    assert result.attempts == 1
+
+
+def test_retry_cut_short_by_budget_keeps_the_observed_failure():
+    calls = []
+
+    async def fn(page, ctx):  # noqa: ARG001
+        calls.append(1)
+        if len(calls) == 1:
+            raise RuntimeError("down")
+        await asyncio.sleep(5)
+
+    result = asyncio.run(
+        run_journey_resilient(
+            _jd(fn),
+            _factory(_Fake()),
+            None,
+            worker_id="w",
+            executor="playwright",
+            executor_version="x",
+            retries=1,
+            timeout_s=120.0,
+            sleep=_noop_sleep,
+            backoff_base=0.0,
+            deadline=time.monotonic() + 0.1,
+        )
+    )
+    assert len(calls) == 2
+    assert result.status == 2
+    assert result.error is not None and result.error.message == "down"
+    assert result.attempts == 1

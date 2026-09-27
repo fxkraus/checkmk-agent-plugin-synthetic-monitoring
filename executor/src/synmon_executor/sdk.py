@@ -125,6 +125,12 @@ def clear_registry() -> None:
     _LOGIN_REGISTRY.clear()
 
 
+def truncate_registry(journeys: int, logins: int) -> None:
+    """Drop registrations made after the registries had these lengths."""
+    del _REGISTRY[journeys:]
+    del _LOGIN_REGISTRY[logins:]
+
+
 @dataclass
 class StepRecord:
     name: str

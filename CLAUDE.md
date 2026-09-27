@@ -30,7 +30,11 @@ fat-client monitoring).
 ## Repo layout
 - `contract/` — `synmon_contract` Pydantic models (the contract) + `schema_export`. **No Playwright/OS imports.**
 - `schema/` — generated, committed JSON Schema (`synmon_result`, `synmon_worker`). Regenerate with `make schema`; CI fails on drift.
-- `executor/` — `synmon_executor` (Playwright). `core.py` is browser-agnostic (drives a `Session` Protocol); `playwright_session.py` is the only real-browser code and imports `playwright` **lazily**. `Containerfile` is the pinned air-gapped image.
+- `executor/` — `synmon_executor` (Playwright). `core.py` is browser-agnostic (drives a `Session` Protocol); `playwright_session.py` is the only real-browser code and imports `playwright` **lazily**. Two image variants, both installing only from `wheelhouse/` (built by `scripts/build_wheelhouse.sh`
+  with `uv.lock` hashes): `Containerfile` = **default, Red Hat UBI 9 minimal** (Python 3.12 +
+  browser libs from UBI repos; only Playwright's headless-shell Chromium copied from the Playwright
+  image; entrypoint `python3.12` since `python3` is 3.9), `Containerfile.playwright` = official
+  Playwright **noble** image (Playwright-supported). Red Hat Hardened Images lack Chromium's libs.
 - `agent_plugin/synmon_collector.py` — Checkmk agent plugin, **standard library only** (runs on the worker).
 - `checkmk_mkp/` — the MKP staging tree. `cmk_addons/plugins/synmon/lib/` (`parsing.py`,
   `evaluate.py`) is **stdlib-only** decision logic, unit-tested offline (`tests/server/`).
@@ -44,6 +48,7 @@ fat-client monitoring).
 - `deploy/` — worker provisioning: hardened Podman Quadlet `synmon-executor.{container,timer}`
   templates + idempotent `install.sh` (rendered + shellcheck-clean).
 - `scripts/build_mkp.py` — stdlib-only `.mkp` builder (reproduces the verified package format; no site needed).
+  `scripts/build_wheelhouse.sh` / `scripts/test_image.sh` — executor image inputs + hardened image smoke test.
 - `tests/` — cross-cutting (smoke + end-to-end contract flow); `tests/server/` covers the MKP lib + the build.
 - `.devcontainer/` — dev image (+ pre-commit cache) + Checkmk 2.5 Ultimate service. `.gitlab-ci.yml` — air-gapped CI.
   `.github/workflows/` — GitHub Actions CI (`ci.yml`) + release (`release.yml`); both support manual
@@ -95,6 +100,8 @@ for bakery API **v2** in 2.5+; v1 is removed in 2.7, see Werk #18600). Do **not*
 - `make format` — apply `ruff format`.
 - `make schema` — regenerate the committed JSON Schema.
 - `make mkp` — build `dist/synmon-<version>.mkp` (stdlib builder; no Checkmk site needed).
+- `make wheelhouse` / `make image` / `make image-test` (`VARIANT=ubi9|playwright`) — executor image: collect wheels (network),
+  build offline, run hardened against the mock site (`scripts/test_image.sh`). Guide: `deploy/README.md`.
 - `make checkmk-up` / `make checkmk-down` — the Checkmk 2.5 Ultimate service (unstable under amd64
   emulation on macOS; fine for read-only API inspection, exits ~60–90s).
 - Tests are **network-free**; the real browser is only used behind `SYNMON_INTEGRATION` (no such test yet).

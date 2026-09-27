@@ -17,7 +17,7 @@ and offline testability.
 |---|---|
 | `contract/` | `synmon_contract` — the normalized result contract (Pydantic). No Playwright/OS imports. |
 | `schema/` | Generated + committed JSON Schema (CI fails on drift). |
-| `executor/` | `synmon_executor` — Playwright executor: authoring SDK, browser-agnostic runner, atomic spool + heartbeat, pinned air-gapped `Containerfile`. |
+| `executor/` | `synmon_executor` — Playwright executor: authoring SDK, browser-agnostic runner, atomic spool + heartbeat, pinned air-gapped images: `Containerfile` (Red Hat UBI 9, default) and `Containerfile.playwright` (Playwright-supported Ubuntu). |
 | `agent_plugin/` | `synmon_collector.py` — stdlib-only Checkmk agent plugin (spool → sections). |
 | `checkmk_mkp/` | The MKP: server-side `cmk_addons/plugins/synmon/{lib,agent_based,graphing,rulesets,checkman}`, the Agent Bakery plugin (`lib/python3/cmk/base/cee/plugins/bakery/`), and the baked agent plugin (`agents/`) + `manifest.json`. The stdlib-only `lib/` is unit-tested offline; `tests/checkmk/` loads every plug-in with Checkmk's own loaders inside real 2.4 and 2.5 images. |
 | `deploy/` | Worker provisioning: hardened Podman Quadlet executor unit + timer and an idempotent `install.sh`. |
@@ -65,9 +65,12 @@ is the SLI, and the check is built to keep that state honest:
   (*State when the journey succeeded only after a retry*).
 - **Latency is part of the SLI** — total/per-step duration and Web Vitals thresholds turn the
   service WARN/CRIT.
-- **No measurement ≠ outage** — a stale result is UNKNOWN by default, and journeys skipped because
-  the run budget was exhausted are UNKNOWN too. Configure your availability/SLA views to exclude
-  (or separately report) UNKNOWN, and watch the *Synthetic Worker Scheduler* service for the cause.
+- **No measurement ≠ outage** — a stale result is UNKNOWN by default, and so are journeys skipped or
+  cut short because the run budget was exhausted (a retry cut short keeps the failure already
+  seen), journeys whose executor crashed, and journeys whose target host's `@login` failed (the
+  outage is reported once, on the login service). Configure your availability/SLA views to
+  exclude (or separately report) UNKNOWN, and watch the *Synthetic Worker Scheduler* service for
+  the cause.
 
 Set the piggyback rule *Processing of piggybacked host data* to keep data valid for at least the
 schedule interval plus one check interval, or journeys flap stale between runs.
@@ -86,6 +89,10 @@ make schema        # regenerate the committed JSON Schema
 make mkp           # build dist/synmon-<version>.mkp
 make test-checkmk  # plug-in loading tests inside a real Checkmk image
                    # (CHECKMK_IMAGE=checkmk/check-mk-cloud:2.4.0-latest for 2.4)
+make wheelhouse    # collect the offline inputs for the executor image (needs network)
+make image         # build the executor image from ./wheelhouse: UBI 9 by default,
+                   # VARIANT=playwright for the Playwright-supported Ubuntu image
+make image-test    # run the image hardened against the mock site (same VARIANT)
 ```
 
 `make lint` runs the hooks from `.pre-commit-config.yaml`: gitleaks, file hygiene, ruff,
@@ -120,7 +127,10 @@ Two layers provision a worker:
   deployment*), or manually from the MKP's `agents/plugins/synmon_collector.py`.
 - **Executor** — a hardened Podman **Quadlet** container on a systemd **timer**, installed by
   `deploy/install.sh` (creates the unprivileged `synmon` user + state dirs, renders the units,
-  enables the timer). See `deploy/README.md`. Live validation on a real RHEL 9.2 worker is pending.
+  enables the timer). The executor image is based on Red Hat UBI 9 by default (a
+  Playwright-supported Ubuntu variant is available too) and installs the executor offline from a
+  hashed wheelhouse (`make wheelhouse`, then `make image`). See `deploy/README.md` for building the image and
+  installing it. Live validation on a real RHEL 9.2 worker is pending.
 
 ## CI / releases (GitHub Actions)
 
@@ -132,7 +142,9 @@ Two layers provision a worker:
     the `.mkp` is kept as a build artifact for 90 days);
   - `pytest (Checkmk 2.4)` / `pytest (Checkmk 2.5)` — `tests/checkmk/` inside the real Checkmk
     images (`-latest` tags, so new patch releases are picked up automatically);
-  - `live browser integration` — Playwright against the mock site.
+  - `live browser integration` — Playwright against the mock site;
+  - `executor image (ubi9)` / `executor image (playwright)` — builds each image variant from the
+    wheelhouse and runs it hardened against the mock site (`make wheelhouse image image-test`).
 
   All actions are pinned by commit SHA.
 - **Dependabot** (`.github/dependabot.yml`) opens weekly, grouped minor/patch PRs for uv,

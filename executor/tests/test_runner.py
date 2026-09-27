@@ -253,7 +253,87 @@ def test_run_budget_marks_unrun_journeys_skipped(tmp_path):
 
     slow = json.loads((spool / "a.example.com__slow.json").read_text("utf-8"))
     later = json.loads((spool / "b.example.com__later.json").read_text("utf-8"))
-    assert slow["status"] == 2 and slow["error"]["type"] == "TimeoutError"
+    # Cut by the 0.1s budget long before its own 120s timeout: no verdict on the target.
+    assert slow["status"] == 3 and "run budget" in slow["summary"]
     assert later["status"] == 3 and "run budget" in later["summary"]
     assert hb_path.exists()
     assert hb.journeys_run == 1 and hb.journeys_skipped == 1
+
+
+LOGIN_FAIL_FILE = """\
+from synmon_executor import login
+
+@login(target_host="app", name="login", max_age_s=1, interval_s=1, retries=0)
+async def _login(page, ctx):
+    async with ctx.step("signin"):
+        raise RuntimeError("bad credentials")
+"""
+
+
+def test_journeys_of_a_failed_login_are_not_run(tmp_path):
+    clear_registry()
+    sessions = []
+
+    @asynccontextmanager
+    async def browser_session(artifacts_dir):
+        @asynccontextmanager
+        async def make_session(storage_state=None):
+            sessions.append(storage_state)
+            yield FakeSession()
+
+        yield make_session
+
+    jdir = tmp_path / "journeys"
+    jdir.mkdir()
+    (jdir / "login_app.py").write_text(LOGIN_FAIL_FILE, encoding="utf-8")
+    (jdir / "journey_home.py").write_text(JOURNEY_HOME, encoding="utf-8")
+    spool = tmp_path / "spool"
+
+    hb = asyncio.run(
+        run_all(
+            journeys_dir=jdir,
+            spool_dir=spool,
+            artifacts_dir=tmp_path / "art",
+            heartbeat_path=tmp_path / "hb.json",
+            worker_id="w",
+            browser_session=browser_session,
+        )
+    )
+
+    assert len(sessions) == 1  # only the login attempt opened a browser context
+    home = json.loads((spool / "app__home.json").read_text("utf-8"))
+    assert home["status"] == 3 and "login" in home["summary"]
+    assert hb.journeys_failed == 1 and hb.journeys_skipped == 0
+
+
+def test_executor_error_writes_unknown_result(tmp_path):
+    clear_registry()
+
+    @asynccontextmanager
+    async def browser_session(artifacts_dir):
+        @asynccontextmanager
+        async def make_session(storage_state=None):
+            raise RuntimeError("browser crashed")
+            yield  # pragma: no cover
+
+        yield make_session
+
+    jdir = tmp_path / "journeys"
+    jdir.mkdir()
+    (jdir / "ok.py").write_text(JOURNEY_OK, encoding="utf-8")
+    spool = tmp_path / "spool"
+
+    asyncio.run(
+        run_all(
+            journeys_dir=jdir,
+            spool_dir=spool,
+            artifacts_dir=tmp_path / "art",
+            heartbeat_path=tmp_path / "hb.json",
+            worker_id="w",
+            browser_session=browser_session,
+        )
+    )
+
+    ok = json.loads((spool / "a.example.com__ok.json").read_text("utf-8"))
+    assert ok["status"] == 3
+    assert "executor error" in ok["summary"] and "browser crashed" in ok["summary"]

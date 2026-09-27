@@ -147,7 +147,7 @@ def _timeout_result(
     )
 
 
-def skipped_result(
+def unknown_result(
     jd: JourneyDef | LoginDef,
     *,
     worker_id: str,
@@ -156,7 +156,8 @@ def skipped_result(
     reason: str,
     wall: Callable[[], float] = time.time,
 ) -> JourneyResult:
-    """UNKNOWN result for a journey that was not run, so its service never shows a stale OK."""
+    """UNKNOWN result for a journey without a conclusive run: it never shows a stale OK and is
+    not counted as a target outage."""
     now = wall()
     return JourneyResult(
         schema_version=SCHEMA_VERSION,
@@ -167,7 +168,7 @@ def skipped_result(
         journey_name=jd.name,
         journey_id=jd.journey_id,
         status=int(Status.UNKNOWN),
-        summary=f"{jd.name}: skipped, {reason}",
+        summary=f"{jd.name}: {reason}",
         started_at=now,
         finished_at=now,
         duration_ms=0,
@@ -187,7 +188,9 @@ async def _attempt(
     timeout_s: float | None,
     wall: Callable[[], float],
     mono: Callable[[], float],
-) -> JourneyResult:
+    budget_bound: bool = False,
+) -> JourneyResult | None:
+    """Run one attempt; ``None`` means the run budget (not the journey timeout) cut it short."""
     started_at = wall()
     coro = run_journey(
         jd,  # type: ignore[arg-type]
@@ -203,6 +206,8 @@ async def _attempt(
     try:
         return await asyncio.wait_for(coro, timeout_s)
     except TimeoutError:
+        if budget_bound:
+            return None
         return _timeout_result(
             jd,
             worker_id=worker_id,
@@ -233,13 +238,16 @@ async def _resilient(
 ) -> tuple[JourneyResult, dict | None]:
     result: JourneyResult | None = None
     captured: dict | None = None
+    attempts = 0
     for attempt in range(1, retries + 2):
         attempt_timeout = timeout_s
+        budget_bound = False
         if deadline is not None:
             remaining = max(deadline - mono(), 0.0)
-            attempt_timeout = remaining if timeout_s is None else min(timeout_s, remaining)
+            if timeout_s is None or remaining < timeout_s:
+                attempt_timeout, budget_bound = remaining, True
         async with make_session(storage_state) as session:
-            result = await _attempt(
+            attempt_result = await _attempt(
                 jd,
                 session,
                 worker_id=worker_id,
@@ -248,17 +256,36 @@ async def _resilient(
                 timeout_s=attempt_timeout,
                 wall=wall,
                 mono=mono,
+                budget_bound=budget_bound,
             )
-            if capture_state and result.status < int(Status.CRIT):
+            if (
+                capture_state
+                and attempt_result is not None
+                and attempt_result.status < int(Status.CRIT)
+            ):
                 captured = await session.storage_state()
-        if result.status < int(Status.CRIT):
+        if attempt_result is None:
+            # Out of time says nothing about the target; keep a failure already observed.
+            if result is None:
+                result = unknown_result(
+                    jd,
+                    worker_id=worker_id,
+                    executor=executor,
+                    executor_version=executor_version,
+                    reason="cut short, run budget exhausted",
+                    wall=wall,
+                )
+                attempts = attempt
             break
-        if deadline is not None and mono() >= deadline:
+        result, attempts = attempt_result, attempt
+        if result.status < int(Status.CRIT) or attempt > retries:
             break
-        if attempt <= retries:
-            await sleep(backoff_base * (2 ** (attempt - 1)))
+        backoff = backoff_base * (2 ** (attempt - 1))
+        if deadline is not None and mono() + backoff >= deadline:
+            break
+        await sleep(backoff)
     assert result is not None
-    result = result.model_copy(update={"attempts": attempt})
+    result = result.model_copy(update={"attempts": attempts})
     return result, captured
 
 
