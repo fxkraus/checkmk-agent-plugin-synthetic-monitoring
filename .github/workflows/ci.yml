@@ -1,0 +1,163 @@
+# Lint, scan for secrets, test and build the MKP on every push to main, every
+# pull request (including Dependabot branches), and on demand ("Run workflow").
+# Actions are pinned by commit SHA; Dependabot keeps the pins current.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  # Runs exactly the hooks from .pre-commit-config.yaml
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+
+      - name: Cache pre-commit environments
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        with:
+          path: ~/.cache/pre-commit
+          key: pre-commit-${{ runner.os }}-${{ hashFiles('.pre-commit-config.yaml') }}
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7  # v10.2.0
+
+      # --locked fails the job if uv.lock is out of date with pyproject.toml
+      - name: Run pre-commit
+        run: uv run --locked --only-group lint pre-commit run --all-files --show-diff-on-failure
+
+  # Scans the git history of the pushed / pull request commits
+  secrets:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Run gitleaks
+        uses: gitleaks/gitleaks-action@e0c47f4f8be36e29cdc102c57e68cb5cbf0e8d1e  # v3.0.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Keep in sync with the gitleaks rev in .pre-commit-config.yaml
+          GITLEAKS_VERSION: "8.30.1"
+          # PR comments would need pull-requests: write
+          GITLEAKS_ENABLE_COMMENTS: "false"
+
+  # Type check, offline test suite, schema drift and MKP build — inside the
+  # project's dev container (same image as local `make`).
+  checks:
+    name: typecheck + test + package
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+
+      - name: Type check (mypy)
+        run: make typecheck
+
+      - name: Test (pytest, network-free)
+        run: make test
+
+      - name: Schema drift check
+        run: |
+          make schema
+          git diff --exit-code -- schema
+
+      - name: Build MKP
+        run: make mkp
+
+      # On main, the MKP is kept as a workflow artifact for each commit.
+      - name: Upload MKP
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        with:
+          name: synmon-mkp-${{ github.sha }}
+          path: dist/*.mkp
+          if-no-files-found: error
+          retention-days: 90
+
+  # Loads every MKP plug-in with Checkmk's own loaders and runs the MKP lib
+  # tests on the real Checkmk libraries (and Python) of each supported
+  # version. -latest tags keep the matrix free of version maintenance.
+  pytest:
+    name: pytest (Checkmk ${{ matrix.checkmk }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - checkmk: "2.4"
+            image: docker.io/checkmk/check-mk-cloud:2.4.0-latest
+          - checkmk: "2.5"
+            # Ultimate = the 2.5 name of the Cloud Edition
+            image: docker.io/checkmk/check-mk-ultimate:2.5.0-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+      - name: Run pytest
+        run: docker run --rm -v "$PWD:/source:ro" --entrypoint /source/tests/checkmk/run-pytest.sh "$IMAGE"
+        env:
+          IMAGE: ${{ matrix.image }}
+
+  integration:
+    name: live browser integration
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
+        with:
+          python-version: "3.12"
+      - name: Install
+        run: |
+          pip install --quiet uv==0.5.11
+          uv pip install --system ./contract ./executor pytest
+          python -m playwright install --with-deps chromium
+      - name: Start mock site
+        run: |
+          python tests/integration/mocksite/mocksite.py 8080 &
+          for _ in $(seq 1 20); do curl -sf http://localhost:8080/healthz && break; sleep 0.5; done
+          curl -sf http://localhost:8080/healthz || { echo "mock site did not become ready"; exit 1; }
+      - name: Run live tests
+        env:
+          SYNMON_INTEGRATION: "1"
+          MOCKSITE_URL: http://localhost:8080
+        run: pytest tests/integration -q
+
+  # Merge Dependabot minor/patch updates of the uv and pre-commit ecosystems
+  # once every other job has passed. Docker and GitHub Actions updates and all
+  # major updates are left open for manual review.
+  #
+  # Gated with `needs:` here instead of a separate workflow with
+  # `gh pr merge --auto`: auto-merge relies on a branch ruleset requiring
+  # these checks (without one, --auto would merge before CI finishes), and
+  # this keeps the gate in the repository instead of in repository settings.
+  dependabot-merge:
+    name: Auto-merge Dependabot (uv / pre-commit, minor + patch)
+    needs: [lint, secrets, checks, pytest, integration]
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request' && github.event.pull_request.user.login == 'dependabot[bot]'
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Fetch Dependabot metadata
+        id: metadata
+        uses: dependabot/fetch-metadata@25dd0e34f4fe68f24cc83900b1fe3fe149efef98  # v3.1.0
+        with:
+          github-token: "${{ secrets.GITHUB_TOKEN }}"
+
+      - name: Approve and squash-merge
+        if: >-
+          contains(fromJSON('["uv", "pre_commit"]'), steps.metadata.outputs.package-ecosystem) &&
+          (steps.metadata.outputs.update-type == 'version-update:semver-minor' ||
+           steps.metadata.outputs.update-type == 'version-update:semver-patch')
+        run: |
+          gh pr review --approve "$PR_URL"
+          gh pr merge --squash --delete-branch "$PR_URL"
+        env:
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

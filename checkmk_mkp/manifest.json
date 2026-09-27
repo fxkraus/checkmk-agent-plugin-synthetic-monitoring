@@ -1,0 +1,31 @@
+{
+  "title": "Synthetic Monitoring (Playwright)",
+  "name": "synmon",
+  "description": "Server-side check, graphing, and rulesets for the custom Playwright synthetic-monitoring solution. Consumes the synmon_journey/synmon_worker agent sections produced by the worker subsystem.",
+  "version": "1.2.0",
+  "version.min_required": "2.4.0p32",
+  "version.packaged": "synmon-build",
+  "version.usable_until": null,
+  "author": "Felix Kraus",
+  "download_url": "https://github.com/fxkraus/checkmk-synmon",
+  "files": {
+    "cmk_addons_plugins": [
+      "synmon/lib/parsing.py",
+      "synmon/lib/evaluate.py",
+      "synmon/agent_based/synmon_journey.py",
+      "synmon/agent_based/synmon_worker.py",
+      "synmon/graphing/synmon.py",
+      "synmon/rulesets/synmon_journey.py",
+      "synmon/rulesets/synmon_worker.py",
+      "synmon/rulesets/synmon_bakery.py",
+      "synmon/checkman/synmon_journey",
+      "synmon/checkman/synmon_worker"
+    ],
+    "agents": [
+      "plugins/synmon_collector.py"
+    ],
+    "lib": [
+      "python3/cmk/base/cee/plugins/bakery/synmon.py"
+    ]
+  }
+}

@@ -1,0 +1,75 @@
+# Dependabot configuration — weekly dependency updates.
+# https://docs.github.com/en/code-security/dependabot/dependabot-version-updates
+#
+# Minor/patch updates are grouped into a single PR per ecosystem. uv and
+# pre-commit updates are auto-merged by the dependabot-merge job in
+# .github/workflows/ci.yml once all CI checks pass; Docker and GitHub Actions
+# updates and all major updates need a manual review.
+#
+# Not managed here, on purpose:
+# - executor/Containerfile: its base image is an ARG pinned by digest and
+#   mirrored to the internal registry (air-gap); bumps are a deliberate step.
+#   Dependabot also only detects Dockerfile* names and literal FROM tags.
+# - .devcontainer/docker-compose.yml: the Checkmk image uses the floating
+#   2.5.0-latest tag (Dependabot would propose daily builds as "patch"
+#   updates), and the Playwright image must match the executor's pinned
+#   playwright version, so it moves together with that pin.
+
+version: 2
+updates:
+  # ── Python dependencies (uv workspace: pyproject.toml + uv.lock) ───────────
+  - package-ecosystem: "uv"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    groups:
+      minor-and-patch:
+        update-types:
+          - "minor"
+          - "patch"
+    labels:
+      - "dependencies"
+
+  # ── Docker (dev container: Python base image + uv) ─────────────────────────
+  - package-ecosystem: "docker"
+    directory: "/.devcontainer"
+    schedule:
+      interval: "weekly"
+    groups:
+      minor-and-patch:
+        update-types:
+          - "minor"
+          - "patch"
+    labels:
+      - "dependencies"
+    ignore:
+      # The executor image runs Python 3.12 (air-gap pin, see CLAUDE.md); the
+      # dev container must match it.
+      - dependency-name: "python"
+        versions: [">= 3.13"]
+
+  # ── pre-commit hooks ───────────────────────────────────────────────────────
+  - package-ecosystem: "pre-commit"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    groups:
+      minor-and-patch:
+        update-types:
+          - "minor"
+          - "patch"
+    labels:
+      - "dependencies"
+
+  # ── GitHub Actions ─────────────────────────────────────────────────────────
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    groups:
+      minor-and-patch:
+        update-types:
+          - "minor"
+          - "patch"
+    labels:
+      - "dependencies"

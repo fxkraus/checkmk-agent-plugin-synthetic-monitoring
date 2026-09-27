@@ -1,0 +1,7 @@
+{
+  "name": "synmon-dev",
+  "dockerComposeFile": "docker-compose.yml",
+  "service": "dev",
+  "workspaceFolder": "/workspace",
+  "postCreateCommand": "uv sync"
+}

@@ -1,0 +1,14 @@
+title: Synthetic Monitoring: Worker Scheduler
+agents: linux
+catalog: app/synmon
+license: MIT
+distribution: check_mk
+description:
+ One service per synthetic-monitoring worker host, sourced from the
+ {synmon_worker} agent section (the executor's heartbeat plus an agent-side
+ spool scan). Goes WARN/CRIT when the scheduler heartbeat is too old (the
+ executor stalled) and WARN when unparseable spool files are present.
+ Perfdata: heartbeat age, results found, journeys failed, unparseable count.
+
+ Configure heartbeat-age thresholds with the ruleset
+ "Synthetic monitoring: worker scheduler".

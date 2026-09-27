@@ -1,0 +1,44 @@
+# Podman Quadlet unit for the synthetic-monitoring executor.
+# This is a TEMPLATE: deploy/install.sh substitutes @IMAGE@ / @SYNMON_UID@ / @SYNMON_GID@ /
+# @JOURNEYS_DIR@ and writes the result to /etc/containers/systemd/synmon-executor.container.
+# The .timer triggers it; it deliberately has no [Install] so it does not start at boot.
+[Unit]
+Description=Synthetic Monitoring executor (Playwright user journeys)
+Documentation=https://github.com/fxkraus/checkmk-synmon
+After=network-online.target
+Wants=network-online.target
+
+[Container]
+# Pinned by digest from the internal mirror (air-gap). The image is pre-loaded; never pulled.
+Image=@IMAGE@
+ContainerName=synmon-executor
+PodmanArgs=--pull=never
+
+# Run unprivileged. Host file ownership is synmon:synmon so the Checkmk agent can read the spool.
+User=@SYNMON_UID@
+Group=@SYNMON_GID@
+
+# Persistent state shared with the agent plugin (spool results, artifacts, heartbeat).
+Volume=/var/lib/synmon:/var/lib/synmon:Z
+# Journey modules, read-only.
+Volume=@JOURNEYS_DIR@:/journeys:ro,Z
+
+Environment=SYNMON_SPOOL_DIR=/var/lib/synmon/spool
+Environment=SYNMON_ARTIFACTS_DIR=/var/lib/synmon/artifacts
+Environment=SYNMON_HEARTBEAT_PATH=/var/lib/synmon/heartbeat.json
+Environment=SYNMON_JOURNEYS_DIR=/journeys
+EnvironmentFile=/etc/synmon/executor.env
+# Journey credentials come from podman secrets, never baked. Create a secret and uncomment, e.g.:
+#   printf '%s' "$APP_PASSWORD" | podman secret create synmon-app-password -
+# Secret=synmon-app-password,type=env,target=APP_PASSWORD
+
+# Hardening.
+NoNewPrivileges=true
+DropCapability=all
+ReadOnly=true
+Tmpfs=/tmp:rw,nosuid,nodev,size=256m
+
+[Service]
+# Batch run: the executor runs every journey once then exits; the timer schedules each run.
+Type=oneshot
+TimeoutStartSec=900

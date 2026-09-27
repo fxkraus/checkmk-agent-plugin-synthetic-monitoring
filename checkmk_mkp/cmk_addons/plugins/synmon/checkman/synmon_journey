@@ -1,0 +1,24 @@
+title: Synthetic Monitoring: Journey
+agents: linux
+catalog: app/synmon
+license: MIT
+distribution: check_mk
+description:
+ One service per synthetic-monitoring journey, sourced from the worker's
+ spool via the {synmon_journey} agent section (piggybacked to the logical
+ target host). The service maps the executor's own status (0/1/2/3) and
+ escalates on configurable total/per-step duration thresholds. A journey
+ that succeeded only after retries is WARN by default (configurable). A
+ stale result ({now} - {started_at} > {max_age_s} + grace) replaces the
+ state with UNKNOWN by default (configurable), so availability/SLA reports
+ can tell "no measurement" apart from an application outage. Per-step timings,
+ the error, and artifact paths (screenshot/trace, stored on the worker) are
+ shown in the service details. Perfdata: total duration, result age, and
+ per-step durations.
+
+ The service also reports Core Web Vitals (LCP, CLS, INP) plus FCP and
+ TTFB as perfdata when the executor captures them. Configurable warn/crit
+ thresholds for LCP, CLS, and INP are available in the ruleset.
+
+ Configure thresholds and staleness handling with the ruleset
+ "Synthetic monitoring: journey".

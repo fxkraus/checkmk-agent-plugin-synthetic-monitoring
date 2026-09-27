@@ -1,0 +1,325 @@
+{
+  "$defs": {
+    "Artifacts": {
+      "properties": {
+        "screenshot_path": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Screenshot Path"
+        },
+        "trace_path": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Trace Path"
+        }
+      },
+      "title": "Artifacts",
+      "type": "object"
+    },
+    "JourneyError": {
+      "properties": {
+        "message": {
+          "title": "Message",
+          "type": "string"
+        },
+        "step": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Step"
+        },
+        "type": {
+          "title": "Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "message"
+      ],
+      "title": "JourneyError",
+      "type": "object"
+    },
+    "Step": {
+      "properties": {
+        "duration_ms": {
+          "minimum": 0,
+          "title": "Duration Ms",
+          "type": "integer"
+        },
+        "message": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Message"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "started_at": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Started At"
+        },
+        "status": {
+          "maximum": 3,
+          "minimum": 0,
+          "title": "Status",
+          "type": "integer"
+        },
+        "vitals": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Vitals"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "name",
+        "status",
+        "duration_ms"
+      ],
+      "title": "Step",
+      "type": "object"
+    },
+    "Vitals": {
+      "description": "Web performance metrics (Core Web Vitals + supporting timings). Times in milliseconds.",
+      "properties": {
+        "cls": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cls"
+        },
+        "fcp_ms": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Fcp Ms"
+        },
+        "inp_ms": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Inp Ms"
+        },
+        "lcp_ms": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Lcp Ms"
+        },
+        "ttfb_ms": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Ttfb Ms"
+        }
+      },
+      "title": "Vitals",
+      "type": "object"
+    }
+  },
+  "properties": {
+    "artifacts": {
+      "$ref": "#/$defs/Artifacts"
+    },
+    "attempts": {
+      "default": 1,
+      "minimum": 1,
+      "title": "Attempts",
+      "type": "integer"
+    },
+    "duration_ms": {
+      "minimum": 0,
+      "title": "Duration Ms",
+      "type": "integer"
+    },
+    "error": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/JourneyError"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "executor": {
+      "title": "Executor",
+      "type": "string"
+    },
+    "executor_version": {
+      "title": "Executor Version",
+      "type": "string"
+    },
+    "finished_at": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Finished At"
+    },
+    "interval_s": {
+      "minimum": 0,
+      "title": "Interval S",
+      "type": "integer"
+    },
+    "journey_id": {
+      "title": "Journey Id",
+      "type": "string"
+    },
+    "journey_name": {
+      "title": "Journey Name",
+      "type": "string"
+    },
+    "labels": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "title": "Labels",
+      "type": "object"
+    },
+    "max_age_s": {
+      "minimum": 0,
+      "title": "Max Age S",
+      "type": "integer"
+    },
+    "schema_version": {
+      "default": "1.0.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "started_at": {
+      "title": "Started At",
+      "type": "number"
+    },
+    "status": {
+      "maximum": 3,
+      "minimum": 0,
+      "title": "Status",
+      "type": "integer"
+    },
+    "steps": {
+      "items": {
+        "$ref": "#/$defs/Step"
+      },
+      "title": "Steps",
+      "type": "array"
+    },
+    "summary": {
+      "title": "Summary",
+      "type": "string"
+    },
+    "target_host": {
+      "title": "Target Host",
+      "type": "string"
+    },
+    "vitals": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/Vitals"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "worker_id": {
+      "title": "Worker Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "executor",
+    "executor_version",
+    "worker_id",
+    "target_host",
+    "journey_name",
+    "journey_id",
+    "status",
+    "summary",
+    "started_at",
+    "duration_ms",
+    "max_age_s",
+    "interval_s"
+  ],
+  "title": "JourneyResult",
+  "type": "object"
+}

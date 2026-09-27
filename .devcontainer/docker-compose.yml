@@ -1,0 +1,50 @@
+services:
+  dev:
+    build:
+      context: ..
+      dockerfile: .devcontainer/Dockerfile
+    environment:
+      UV_CACHE_DIR: /uv-cache
+    volumes:
+      - "..:/workspace:cached"
+      - "uv-cache:/uv-cache"
+      - "venv:/opt/venv"
+      - "pre-commit-cache:/pre-commit-cache"
+    working_dir: /workspace
+    command: sleep infinity
+
+  checkmk:
+    # Ultimate = the 2.5 name of the Cloud Edition (CCE). Floating tag: latest 2.5 patch release.
+    image: checkmk/check-mk-ultimate:2.5.0-latest
+    platform: linux/amd64
+    # Passed through from the host shell. If unset, the image generates a random cmkadmin
+    # password and prints it in `docker compose logs checkmk`.
+    environment:
+      - CMK_PASSWORD
+    tmpfs:
+      - /opt/omd/sites/cmk/tmp:uid=1000,gid=1000
+    # Loopback only: the dev site must not be reachable from the network.
+    ports:
+      - "127.0.0.1:8080:5000"
+      - "127.0.0.1:8000:8000"
+
+  mocksite:
+    image: python:3.12-slim-bookworm
+    working_dir: /workspace
+    volumes:
+      - "..:/workspace:cached"
+    command: python tests/integration/mocksite/mocksite.py 8080
+
+  playwright:
+    image: mcr.microsoft.com/playwright/python:v1.49.0-jammy
+    environment:
+      UV_LINK_MODE: copy
+    volumes:
+      - "..:/workspace:cached"
+    working_dir: /workspace
+    command: sleep infinity
+
+volumes:
+  uv-cache:
+  venv:
+  pre-commit-cache:

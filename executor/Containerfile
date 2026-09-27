@@ -1,0 +1,26 @@
+# Mirror mcr.microsoft.com/playwright/python:v1.49.0-jammy to the internal registry,
+# then pin by digest here before go-live. Browsers are vendored at /ms-playwright.
+ARG PLAYWRIGHT_IMAGE=registry.internal.example/mirror/playwright/python:v1.49.0-jammy
+FROM ${PLAYWRIGHT_IMAGE}
+
+ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright \
+    PIP_NO_INDEX=1 \
+    SYNMON_JOURNEYS_DIR=/journeys \
+    SYNMON_SPOOL_DIR=/var/lib/synmon/spool \
+    SYNMON_ARTIFACTS_DIR=/var/lib/synmon/artifacts \
+    SYNMON_HEARTBEAT_PATH=/var/lib/synmon/heartbeat.json
+
+WORKDIR /opt/synmon
+COPY contract /opt/synmon/contract
+COPY executor /opt/synmon/executor
+# The vendored web-vitals.iife.js (+ its Apache-2.0 LICENSE) ships inside the synmon_executor
+# package (src/synmon_executor/vendor/); load_vendored_lib() resolves it next to vitals.py.
+
+# Air-gapped: resolve deps from a vendored wheelhouse mounted/copied at build time.
+COPY wheelhouse /opt/synmon/wheelhouse
+RUN pip install --no-cache-dir --no-index --find-links /opt/synmon/wheelhouse \
+        /opt/synmon/contract /opt/synmon/executor \
+    && rm -rf /opt/synmon/wheelhouse
+
+USER 1000:1000
+ENTRYPOINT ["python", "-m", "synmon_executor.runner"]

@@ -1,0 +1,52 @@
+# Air-gapped GitLab runners. Mirror the base image + uv to the internal registry and
+# point UV_INDEX_URL at the internal PyPI before enabling on the real runners.
+stages:
+  - lint
+  - schema
+  - test
+  - build
+
+default:
+  image: python:3.12-slim-bookworm
+  before_script:
+    - pip install --quiet uv==0.5.11
+    - uv sync --frozen
+
+variables:
+  UV_LINK_MODE: copy
+
+lint:
+  stage: lint
+  script:
+    - uv run ruff check .
+    - uv run ruff format --check .
+    - uv run mypy
+
+hadolint:
+  stage: lint
+  # Keep in sync with the hadolint-py rev in .pre-commit-config.yaml
+  image: hadolint/hadolint:v2.15.1-debian
+  before_script: []
+  script:
+    - hadolint --config .hadolint.yaml executor/Containerfile .devcontainer/Dockerfile
+
+schema-sync:
+  stage: schema
+  script:
+    - uv run python -m synmon_contract.schema_export /tmp/schema-out
+    - diff -ru schema /tmp/schema-out
+
+test:
+  stage: test
+  script:
+    - uv run pytest -q
+
+# The .mkp is built with a stdlib-only script, so no Checkmk site/image is needed here.
+mkp:
+  stage: build
+  before_script: []
+  script:
+    - python3 scripts/build_mkp.py
+  artifacts:
+    paths:
+      - dist/*.mkp

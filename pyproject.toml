@@ -1,0 +1,49 @@
+[project]
+name = "synmon"
+version = "0.0.0"
+description = "Checkmk synthetic monitoring (worker producer subsystem)"
+requires-python = ">=3.12"
+license = "MIT"
+
+[tool.uv]
+package = false
+
+[tool.uv.workspace]
+members = ["contract", "executor"]
+
+[tool.uv.sources]
+synmon-contract = { workspace = true }
+synmon-executor = { workspace = true }
+
+# Exact pins (air-gap reproducibility); Dependabot keeps them current.
+[dependency-groups]
+# Installed into the Checkmk interpreter by tests/checkmk/run-pytest.sh
+test = ["pytest==9.0.3"]
+# Used by the CI lint job
+lint = ["pre-commit==4.6.2"]
+dev = [
+    { include-group = "test" },
+    { include-group = "lint" },
+    # Keep in sync with the ruff-pre-commit rev in .pre-commit-config.yaml
+    "ruff==0.15.18",
+    "mypy==2.1.0",
+    "jsonschema==4.26.0",
+    "synmon-contract",
+    "synmon-executor",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.mypy]
+python_version = "3.12"
+files = ["contract/src", "executor/src", "checkmk_mkp/cmk_addons/plugins/synmon/lib", "scripts"]
+ignore_missing_imports = true
+check_untyped_defs = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests", "tests/server", "tests/integration/mocksite", "contract/tests", "executor/tests", "agent_plugin/tests"]

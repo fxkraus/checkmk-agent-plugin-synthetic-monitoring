@@ -1,0 +1,37 @@
+name: Auto-release on manifest bump
+
+# Publish a release when (and only when) the packaged MKP version changes. The version lives in
+# checkmk_mkp/manifest.json, which only changes for a deliberate package change — dependency bumps
+# never touch it, and the package bundles no third-party deps, so its bytes are unaffected by them.
+# This is the "release only if the files touched require it" rule.
+on:
+  push:
+    branches: [main]
+    paths:
+      - "checkmk_mkp/manifest.json"
+
+permissions:
+  contents: write
+
+jobs:
+  auto-release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+
+      - name: Build MKP
+        run: python3 scripts/build_mkp.py
+
+      - name: Publish release if the manifest version is new
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version="$(python3 scripts/build_mkp.py --print-version)"
+          tag="v${version}"
+          if gh release view "$tag" >/dev/null 2>&1; then
+            echo "Release $tag already exists; the manifest change did not bump the version. Nothing to do."
+            exit 0
+          fi
+          notes="$(printf 'Checkmk 2.4/2.5 synthetic-monitoring MKP (synmon %s).\n\nInstall on the Checkmk site:\n    mkp add synmon-%s.mkp\n    mkp enable synmon %s' "$version" "$version" "$version")"
+          gh release create "$tag" dist/*.mkp --title "synmon ${version}" --notes "$notes"
+          echo "Published release $tag."
