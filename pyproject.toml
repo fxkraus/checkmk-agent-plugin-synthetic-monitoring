@@ -18,7 +18,7 @@ synmon-executor = { workspace = true }
 # Exact pins (air-gap reproducibility); Dependabot keeps them current.
 [dependency-groups]
 # Installed into the Checkmk interpreter by tests/checkmk/run-pytest.sh
-test = ["pytest==9.0.3"]
+test = ["pytest==9.1.1"]
 # Used by the CI lint job
 lint = ["pre-commit==4.6.2"]
 dev = [
@@ -26,7 +26,7 @@ dev = [
     { include-group = "lint" },
     # Keep in sync with the ruff-pre-commit rev in .pre-commit-config.yaml
     "ruff==0.16.8",
-    "mypy==2.1.0",
+    "mypy==2.3.1",
     "jsonschema==4.26.0",
     "synmon-contract",
     "synmon-executor",
