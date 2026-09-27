@@ -150,7 +150,7 @@ Two layers provision a worker:
   All actions are pinned by commit SHA.
 - **Dependabot** (`.github/dependabot.yml`) opens weekly, grouped minor/patch PRs for uv,
   pre-commit, GitHub Actions and the dev-container image. uv and pre-commit minor/patch updates
-  are approved and squash-merged by CI's `dependabot-merge` job once every other job passed;
+  are squash-merged by CI's `dependabot-merge` job once every other job passed;
   Actions, Docker and all major updates wait for a manual review. (The merge is gated with
   `needs:` inside CI rather than GitHub auto-merge, so it does not depend on a branch ruleset
   requiring these checks.)
