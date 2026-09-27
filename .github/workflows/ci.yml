@@ -179,14 +179,14 @@ jobs:
         with:
           github-token: "${{ secrets.GITHUB_TOKEN }}"
 
-      - name: Approve and squash-merge
+      # No approval: no ruleset requires one, and the repository does not let
+      # GitHub Actions approve pull requests (least privilege).
+      - name: Squash-merge
         if: >-
           contains(fromJSON('["uv", "pre_commit"]'), steps.metadata.outputs.package-ecosystem) &&
           (steps.metadata.outputs.update-type == 'version-update:semver-minor' ||
            steps.metadata.outputs.update-type == 'version-update:semver-patch')
-        run: |
-          gh pr review --approve "$PR_URL"
-          gh pr merge --squash --delete-branch "$PR_URL"
+        run: gh pr merge --squash --delete-branch "$PR_URL"
         env:
           PR_URL: ${{ github.event.pull_request.html_url }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
