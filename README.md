@@ -33,6 +33,7 @@ Journeys are Python modules discovered from a directory. They never touch contra
 ```python
 from synmon_executor import journey
 
+
 @journey(name="login", target_host="app.example.com", max_age_s=900, interval_s=300)
 async def run(page, ctx):
     async with ctx.step("open login"):
