@@ -58,9 +58,10 @@ testpaths = ["tests", "tests/server", "tests/integration/mocksite", "contract/te
 # enforces the subject format on pull requests and in the commit-msg hook.
 [tool.semantic_release]
 # Not version_variables: its pattern also rewrites "version.min_required" in the JSON manifest.
-# build_mkp.py stamps the manifest and builds dist/synmon-<version>.mkp in one step.
-build_command = "python3 scripts/build_mkp.py --set-version \"$NEW_VERSION\""
-assets = ["checkmk_mkp/manifest.json"]
+# build_mkp.py stamps the manifest and builds dist/synmon-<version>.mkp in one step. The manifest
+# is staged here, not listed in `assets`: semantic-release also uploads assets to the release.
+build_command = """python3 scripts/build_mkp.py --set-version "$NEW_VERSION" \
+  && git add checkmk_mkp/manifest.json"""
 tag_format = "v{version}"
 commit_message = "chore(release): v{version}"
 commit_author = "github-actions[bot] <41898282+github-actions[bot]@users.noreply.github.com>"
