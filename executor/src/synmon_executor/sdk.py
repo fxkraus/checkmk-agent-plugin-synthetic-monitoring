@@ -32,6 +32,18 @@ class JourneyDef:
 _REGISTRY: list[JourneyDef] = []
 
 
+def _validate(
+    name: str, max_age_s: int, interval_s: int, retries: int | None, timeout_s: float | None
+) -> None:
+    """Reject bad decorator arguments at import time, so they surface as load errors."""
+    if max_age_s < 0 or interval_s < 0:
+        raise ValueError(f"'{name}': max_age_s and interval_s must be >= 0")
+    if retries is not None and retries < 0:
+        raise ValueError(f"'{name}': retries must be >= 0, got {retries}")
+    if timeout_s is not None and timeout_s <= 0:
+        raise ValueError(f"'{name}': timeout_s must be > 0, got {timeout_s}")
+
+
 def journey(
     *,
     name: str,
@@ -43,6 +55,8 @@ def journey(
     retries: int | None = None,
     timeout_s: float | None = None,
 ) -> Callable[[JourneyFunc], JourneyFunc]:
+    _validate(name, max_age_s, interval_s, retries, timeout_s)
+
     def decorator(func: JourneyFunc) -> JourneyFunc:
         _REGISTRY.append(
             JourneyDef(
@@ -97,6 +111,8 @@ def login(
     retries: int | None = None,
     timeout_s: float | None = None,
 ) -> Callable[[JourneyFunc], JourneyFunc]:
+    _validate(name, max_age_s, interval_s, retries, timeout_s)
+
     def decorator(func: JourneyFunc) -> JourneyFunc:
         _LOGIN_REGISTRY.append(
             LoginDef(

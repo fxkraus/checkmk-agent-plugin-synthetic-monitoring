@@ -25,9 +25,18 @@ def _conflict(new: list[JourneyDef | LoginDef], old: list[JourneyDef | LoginDef]
     """Why the module's registrations cannot be accepted, or ``None``."""
     stems = {result_stem(d.target_host, d.journey_id) for d in old}
     names = {(d.target_host, d.name) for d in old}
+    logins = {d.target_host: d.name for d in old if isinstance(d, LoginDef)}
     for d in new:
         if not _HOST_RE.fullmatch(d.target_host):
             return f"invalid target_host {d.target_host!r} in '{d.name}'"
+        if isinstance(d, LoginDef):
+            # One session state per target host: a second login would silently replace it.
+            if d.target_host in logins:
+                return (
+                    f"second login '{d.name}' for {d.target_host} "
+                    f"(already has '{logins[d.target_host]}')"
+                )
+            logins[d.target_host] = d.name
         stem = result_stem(d.target_host, d.journey_id)
         if stem in stems:
             return f"'{d.name}' on {d.target_host} collides with another journey's id"

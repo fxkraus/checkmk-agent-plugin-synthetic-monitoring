@@ -91,3 +91,37 @@ def test_duplicate_journey_name_on_a_host_is_a_load_error(tmp_path):
         ("h", "id1"),
         ("other", "id1"),
     ]
+
+
+def test_second_login_for_the_same_host_is_a_load_error(tmp_path):
+    clear_registry()
+    login_src = """
+from synmon_executor import login
+
+@login(target_host="app.example.com", name="{name}", max_age_s=600, interval_s=300)
+async def run(page, ctx):
+    pass
+"""
+    (tmp_path / "a.py").write_text(login_src.format(name="sso"), encoding="utf-8")
+    (tmp_path / "b.py").write_text(login_src.format(name="form"), encoding="utf-8")
+
+    _, errors = load_journeys(tmp_path)
+
+    from synmon_executor.sdk import registered_logins
+
+    assert [ld.name for ld in registered_logins()] == ["sso"]
+    (err,) = errors
+    assert "second login 'form' for app.example.com (already has 'sso')" in err
+
+
+def test_invalid_decorator_arguments_are_load_errors(tmp_path):
+    clear_registry()
+    (tmp_path / "bad.py").write_text(
+        JOURNEY_SRC.replace("interval_s=300", "interval_s=300, retries=-1"), encoding="utf-8"
+    )
+
+    _, errors = load_journeys(tmp_path)
+
+    assert registered_journeys() == []
+    (err,) = errors
+    assert err.startswith("bad.py: ValueError: 'probe': retries must be >= 0")
