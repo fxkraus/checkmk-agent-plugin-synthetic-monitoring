@@ -18,6 +18,8 @@ Only the latest release receives fixes.
 - Journey credentials must come from the environment / podman secrets; never commit them to
   journey files. A report showing that the executor or agent plugin leaks them (spool, artifacts,
   agent output, logs) is in scope.
-- Screenshots and Playwright traces written on failure can contain whatever the monitored page
-  shows. `deploy/install.sh` creates `/var/lib/synmon/artifacts` as mode `2750` (owner `synmon`,
-  group-readable only); do not widen it.
+- Screenshots written on failure can contain whatever the monitored page shows. They are
+  created mode `0640` in `/var/lib/synmon/artifacts`, which `deploy/install.sh` creates as mode
+  `2750` (owner `synmon`, group-readable only); do not widen it.
+- Playwright traces are off by default because they record typed credentials and session
+  cookies. `SYNMON_TRACE=1` enables them for debugging only.

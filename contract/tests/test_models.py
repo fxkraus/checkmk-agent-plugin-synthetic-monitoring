@@ -141,3 +141,19 @@ def test_journey_result_attempts_defaults_to_one():
     assert jr.attempts == 1
     jr2 = JourneyResult.model_validate({**jr.model_dump(), "attempts": 3})
     assert jr2.attempts == 3
+
+
+def test_target_host_rejects_piggyback_header_characters():
+    import pytest
+    from pydantic import ValidationError
+
+    for bad in ["", "a>>>>", "a\nb", "-lead", "a b", "<<<x>>>", "a/b"]:
+        with pytest.raises(ValidationError):
+            _minimal_result(target_host=bad)
+    assert _minimal_result(target_host="Web_01.example-corp.com").target_host
+
+
+def test_heartbeat_run_error_defaults_to_none():
+    hb = Heartbeat(worker_id="w", executor="playwright", executor_version="1", heartbeat_at=1.0)
+    assert hb.run_error is None
+    assert WorkerHealth().run_error is None

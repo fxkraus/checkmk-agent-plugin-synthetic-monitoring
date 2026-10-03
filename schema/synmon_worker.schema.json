@@ -121,6 +121,18 @@
       "title": "Results Found",
       "type": "integer"
     },
+    "run_error": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Run Error"
+    },
     "schema_version": {
       "default": "1.0.0",
       "title": "Schema Version",

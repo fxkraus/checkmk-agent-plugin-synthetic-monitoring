@@ -337,3 +337,122 @@ def test_executor_error_writes_unknown_result(tmp_path):
     ok = json.loads((spool / "a.example.com__ok.json").read_text("utf-8"))
     assert ok["status"] == 3
     assert "executor error" in ok["summary"] and "browser crashed" in ok["summary"]
+
+
+def _run(tmp_path, jdir, browser_session=None, **kw):
+    return asyncio.run(
+        run_all(
+            journeys_dir=jdir,
+            spool_dir=tmp_path / "spool",
+            artifacts_dir=tmp_path / "art",
+            heartbeat_path=tmp_path / "hb.json",
+            worker_id="w",
+            browser_session=browser_session or _fake_browser_session(),
+            **kw,
+        )
+    )
+
+
+def test_run_level_failure_is_reported_in_the_heartbeat(tmp_path):
+    clear_registry()
+
+    @asynccontextmanager
+    async def browser_session(artifacts_dir):
+        raise RuntimeError("chromium: missing libnss3.so")
+        yield  # pragma: no cover
+
+    jdir = tmp_path / "journeys"
+    jdir.mkdir()
+    (jdir / "ok.py").write_text(JOURNEY_OK, encoding="utf-8")
+
+    import pytest
+
+    with pytest.raises(RuntimeError):
+        _run(tmp_path, jdir, browser_session)
+    hb = json.loads((tmp_path / "hb.json").read_text("utf-8"))
+    assert hb["run_error"] == "RuntimeError: chromium: missing libnss3.so"
+
+
+def test_results_of_removed_journeys_are_pruned(tmp_path):
+    clear_registry()
+    jdir = tmp_path / "journeys"
+    jdir.mkdir()
+    (jdir / "ok.py").write_text(JOURNEY_OK, encoding="utf-8")
+    spool = tmp_path / "spool"
+    spool.mkdir()
+    (spool / "gone.example.com__old.json").write_text("{}", encoding="utf-8")
+
+    hb = _run(tmp_path, jdir)
+
+    assert hb.run_error is None
+    assert sorted(p.name for p in spool.iterdir()) == ["a.example.com__ok.json"]
+
+
+def test_results_are_kept_when_a_journey_file_failed_to_load(tmp_path):
+    clear_registry()
+    jdir = tmp_path / "journeys"
+    jdir.mkdir()
+    (jdir / "ok.py").write_text(JOURNEY_OK, encoding="utf-8")
+    (jdir / "broken.py").write_text("def (:\n", encoding="utf-8")
+    spool = tmp_path / "spool"
+    spool.mkdir()
+    (spool / "b.example.com__bad.json").write_text("{}", encoding="utf-8")
+
+    hb = _run(tmp_path, jdir)
+
+    assert hb.load_errors
+    assert (spool / "b.example.com__bad.json").exists()
+
+
+def test_old_artifacts_are_pruned(tmp_path):
+    import os
+
+    clear_registry()
+    jdir = tmp_path / "journeys"
+    jdir.mkdir()
+    art = tmp_path / "art"
+    art.mkdir()
+    (art / "old.png").write_bytes(b"")
+    (art / "new.png").write_bytes(b"")
+    os.utime(art / "old.png", (0, 0))
+
+    _run(tmp_path, jdir, artifact_max_age_s=3600)
+
+    assert sorted(p.name for p in art.iterdir()) == ["new.png"]
+
+
+LOGIN_SLOW_FILE = """\
+import asyncio
+
+from synmon_executor import login
+
+@login(target_host="app", name="login", max_age_s=1, interval_s=1, retries=0)
+async def _login(page, ctx):
+    async with ctx.step("signin"):
+        await asyncio.sleep(5)
+"""
+
+
+def test_budget_cut_login_is_not_a_failure(tmp_path):
+    clear_registry()
+    jdir = tmp_path / "journeys"
+    jdir.mkdir()
+    (jdir / "login_app.py").write_text(LOGIN_SLOW_FILE, encoding="utf-8")
+    (jdir / "journey_home.py").write_text(JOURNEY_HOME, encoding="utf-8")
+
+    hb = _run(tmp_path, jdir, run_budget_s=0.1)
+
+    home = json.loads((tmp_path / "spool" / "app__home.json").read_text("utf-8"))
+    assert home["status"] == 3 and "run budget" in home["summary"]
+    assert hb.journeys_failed == 0 and hb.journeys_skipped == 1
+
+
+def test_budget_cut_journey_is_not_counted_as_failed(tmp_path):
+    clear_registry()
+    jdir = tmp_path / "journeys"
+    jdir.mkdir()
+    (jdir / "a_slow.py").write_text(JOURNEY_SLOW, encoding="utf-8")
+
+    hb = _run(tmp_path, jdir, run_budget_s=0.1)
+
+    assert hb.journeys_run == 1 and hb.journeys_failed == 0

@@ -8,12 +8,17 @@ from __future__ import annotations
 
 import json
 import os
+import re
+import stat
 import sys
 from pathlib import Path
 
 SCHEMA_VERSION = "1.0.0"
 SPOOL_DIR = Path(os.environ.get("SYNMON_SPOOL_DIR", "/var/lib/synmon/spool"))
 HEARTBEAT_PATH = Path(os.environ.get("SYNMON_HEARTBEAT_PATH", "/var/lib/synmon/heartbeat.json"))
+MAX_FILE_BYTES = 1024 * 1024
+# Must match the contract's target_host pattern; anything else could forge piggyback headers.
+_HOST_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,252}")
 
 _HEARTBEAT_KEYS = (
     "worker_id",
@@ -27,7 +32,31 @@ _HEARTBEAT_KEYS = (
     "journeys_failed",
     "journeys_skipped",
     "load_errors",
+    "run_error",
 )
+
+
+def _read_json(path: Path):
+    """Read a regular file, never following symlinks or blocking on FIFOs (the agent runs as
+    root over a directory an unprivileged user can write). Raises OSError/ValueError."""
+    fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+    with os.fdopen(fd, "rb") as fh:
+        info = os.fstat(fh.fileno())
+        if not stat.S_ISREG(info.st_mode):
+            raise ValueError("not a regular file")
+        data = fh.read(MAX_FILE_BYTES + 1)
+    if len(data) > MAX_FILE_BYTES:
+        raise ValueError("file too large")
+    return json.loads(data.decode("utf-8"))
+
+
+def _is_valid_result(data) -> bool:
+    return (
+        isinstance(data, dict)
+        and isinstance(data.get("target_host"), str)
+        and _HOST_RE.fullmatch(data["target_host"]) is not None
+        and isinstance(data.get("journey_name"), str)
+    )
 
 
 def _load_results(spool_dir: Path):
@@ -37,11 +66,11 @@ def _load_results(spool_dir: Path):
         return results, unparseable
     for path in sorted(spool_dir.glob("*.json")):
         try:
-            data = json.loads(path.read_text(encoding="utf-8"))
+            data = _read_json(path)
         except (OSError, ValueError):
             unparseable += 1
             continue
-        if not isinstance(data, dict) or "target_host" not in data or "journey_name" not in data:
+        if not _is_valid_result(data):
             unparseable += 1
             continue
         results.append(data)
@@ -50,7 +79,7 @@ def _load_results(spool_dir: Path):
 
 def _load_heartbeat(path: Path):
     try:
-        data = json.loads(path.read_text(encoding="utf-8"))
+        data = _read_json(path)
     except (OSError, ValueError):
         return None
     return data if isinstance(data, dict) else None

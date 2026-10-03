@@ -18,13 +18,15 @@ from synmon_contract.models import (
 )
 
 from synmon_executor.sdk import JourneyDef, LoginDef, StepRecorder
+from synmon_executor.spool import result_stem
 from synmon_executor.vitals import to_vitals
 
 
 class Session(Protocol):
     page: object
 
-    async def capture_failure(self, journey_id: str) -> Artifacts: ...
+    # ``name`` is the result's spool stem (target host + journey id), unique per worker.
+    async def capture_failure(self, name: str) -> Artifacts: ...
 
     # Optional: sessions that support web vitals implement this.
     async def read_vitals(self) -> dict | None: ...
@@ -73,7 +75,7 @@ async def run_journey(
         # A crashed page/browser makes capture fail too; the CRIT result matters more than the
         # screenshot, so never let artifact capture swallow it.
         try:
-            artifacts = await session.capture_failure(jd.journey_id)
+            artifacts = await session.capture_failure(result_stem(jd.target_host, jd.journey_id))
         except Exception:
             artifacts = Artifacts()
 

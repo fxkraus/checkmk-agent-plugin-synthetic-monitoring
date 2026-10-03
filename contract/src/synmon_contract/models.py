@@ -8,6 +8,9 @@ from pydantic import BaseModel, ConfigDict, Field
 
 SCHEMA_VERSION = "1.0.0"
 
+# Checkmk host-name characters only: the agent plugin writes target_host into a piggyback header.
+TARGET_HOST_PATTERN = r"^[A-Za-z0-9][A-Za-z0-9._-]{0,252}$"
+
 
 class Status(IntEnum):
     OK = 0
@@ -56,7 +59,7 @@ class JourneyResult(_Base):
     executor: str
     executor_version: str
     worker_id: str
-    target_host: str
+    target_host: str = Field(pattern=TARGET_HOST_PATTERN)
     journey_name: str
     journey_id: str
     status: int = Field(ge=0, le=3)
@@ -89,6 +92,8 @@ class Heartbeat(_Base):
     journeys_failed: int = 0
     journeys_skipped: int = 0
     load_errors: list[str] = Field(default_factory=list)
+    # Set when the run itself failed (e.g. the browser did not start), not a single journey.
+    run_error: str | None = None
 
 
 class WorkerHealth(_Base):
@@ -106,5 +111,6 @@ class WorkerHealth(_Base):
     journeys_failed: int | None = None
     journeys_skipped: int | None = None
     load_errors: list[str] = Field(default_factory=list)
+    run_error: str | None = None
     results_found: int = 0
     unparseable: int = 0

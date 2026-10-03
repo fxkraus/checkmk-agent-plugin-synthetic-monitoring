@@ -42,6 +42,7 @@ done
 
 "${engine}" run --rm --network "${name}" \
     --read-only --tmpfs /tmp --cap-drop all --security-opt no-new-privileges \
+    --memory 2g --memory-swap 2g --pids-limit 1024 \
     --user 1000:1000 \
     --env SYNMON_WORKER_ID=image-test \
     --env SYNMON_TIMEOUT_S=30 \

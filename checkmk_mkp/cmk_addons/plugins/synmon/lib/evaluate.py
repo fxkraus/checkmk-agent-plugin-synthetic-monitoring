@@ -78,9 +78,22 @@ def _f(value: object, default: float = 0.0) -> float:
         return default
 
 
+def _state(value: object) -> int:
+    """A reported status, or UNKNOWN if it is not one of the four states."""
+    if isinstance(value, int) and not isinstance(value, bool) and OK <= value <= UNKNOWN:
+        return value
+    return UNKNOWN
+
+
+def _dict(value: object) -> dict:
+    return value if isinstance(value, dict) else {}
+
+
 def evaluate_journey(journey: dict, params: Mapping, now: float) -> JourneyOutcome:
-    state = int(journey.get("status", UNKNOWN))
+    state = _state(journey.get("status", UNKNOWN))
     details: list[str] = []
+    if state == UNKNOWN and journey.get("status", UNKNOWN) != UNKNOWN:
+        details.append(f"Invalid status reported: {journey.get('status')!r}")
     metrics: list[MetricSpec] = []
     steps: list[StepView] = []
 
@@ -103,9 +116,12 @@ def evaluate_journey(journey: dict, params: Mapping, now: float) -> JourneyOutco
             details.append(stale_note)
 
     step_levels = norm_levels(params.get("step_duration_levels"))
-    for i, raw in enumerate(journey.get("steps", []) or [], start=1):
+    raw_steps = journey.get("steps")
+    for i, raw in enumerate(raw_steps if isinstance(raw_steps, list) else [], start=1):
+        if not isinstance(raw, dict):
+            continue
         sdur = _f(raw.get("duration_ms")) / 1000.0
-        sstate = int(raw.get("status", UNKNOWN))
+        sstate = _state(raw.get("status", UNKNOWN))
         sstate = max(sstate, level_state(sdur, step_levels))
         name = raw.get("name") or f"step{i}"
         message = raw.get("message")
@@ -117,19 +133,19 @@ def evaluate_journey(journey: dict, params: Mapping, now: float) -> JourneyOutco
             line += f" — {message}"
         details.append(line)
 
-    error = journey.get("error")
+    error = _dict(journey.get("error"))
     if error:
         details.append(
             f"Error: {error.get('type')} at step '{error.get('step')}': {error.get('message')}"
         )
 
-    artifacts = journey.get("artifacts") or {}
+    artifacts = _dict(journey.get("artifacts"))
     if artifacts.get("screenshot_path"):
         details.append(f"Screenshot: {artifacts['screenshot_path']}")
     if artifacts.get("trace_path"):
         details.append(f"Trace: {artifacts['trace_path']}")
 
-    vitals = journey.get("vitals") or {}
+    vitals = _dict(journey.get("vitals"))
     # (contract_field, metric_name, param_key, scale)  scale converts ms -> the metric unit
     _VITALS = [
         ("lcp_ms", "synmon_lcp", "lcp_levels", 0.001),
@@ -212,9 +228,15 @@ def evaluate_worker(worker: dict, params: Mapping, now: float) -> WorkerOutcome:
     if skipped:
         state = max(state, WARN)
         summary += f", {skipped} skipped (run budget exhausted)"
-    load_errors = [str(e) for e in worker.get("load_errors") or []]
+    raw_errors = worker.get("load_errors")
+    load_errors = [str(e) for e in raw_errors] if isinstance(raw_errors, list) else []
     if load_errors:
         state = max(state, WARN)
         summary += f"; {len(load_errors)} journey file(s) failed to load"
         details.extend(load_errors)
+    run_error = worker.get("run_error")
+    if run_error:
+        # The whole run failed, so every journey is going stale; say why here.
+        state = CRIT
+        summary += f"; last run failed: {run_error}"
     return WorkerOutcome(state=state, summary=summary, details=details, metrics=metrics)

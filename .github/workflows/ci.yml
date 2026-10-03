@@ -102,6 +102,13 @@ jobs:
             image: docker.io/checkmk/check-mk-ultimate:2.5.0-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+      - name: Set up uv
+        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7  # v10.2.0
+      # The Checkmk image has no uv: hand it the test group with the uv.lock hashes.
+      - name: Export test requirements
+        run: >-
+          uv export --locked --only-group test --no-emit-project --no-emit-workspace
+          --output-file .cache/checkmk-test-requirements.txt
       - name: Run pytest
         run: docker run --rm -v "$PWD:/source:ro" --entrypoint /source/tests/checkmk/run-pytest.sh "$IMAGE"
         env:
@@ -115,12 +122,13 @@ jobs:
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
         with:
           python-version: "3.12"
+      - name: Set up uv
+        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7  # v10.2.0
+      # Everything from uv.lock (hash-checked); only the browser comes from Playwright's CDN.
       - name: Install
         run: |
-          pip install --quiet uv==0.5.11
-          # Keep the pytest pin in sync with the "test" dependency group in pyproject.toml
-          uv pip install --system ./contract ./executor pytest==9.0.3
-          python -m playwright install --with-deps chromium
+          uv sync --locked
+          uv run --locked playwright install --with-deps chromium
       - name: Start mock site
         run: |
           python tests/integration/mocksite/mocksite.py 8080 &
@@ -130,7 +138,7 @@ jobs:
         env:
           SYNMON_INTEGRATION: "1"
           MOCKSITE_URL: http://localhost:8080
-        run: pytest tests/integration -q
+        run: uv run --locked pytest tests/integration -q
 
   # Builds each executor image variant the air-gapped way (offline install from the hashed
   # wheelhouse) and runs it hardened, as deploy/synmon-executor.container does, against the

@@ -140,8 +140,29 @@ ls -l /var/lib/synmon/spool /var/lib/synmon/heartbeat.json
 
 The agent plugin (baked onto the same host) turns the spool into `synmon_journey` /
 `synmon_worker` sections. The spool is owned `synmon:synmon`, group-readable; if the agent runs
-unprivileged, pass `--agent-group <group>` so it can read the spool.
+as an unprivileged user (e.g. `cmk-agent`), pass `--agent-user <user>` to add it to the `synmon`
+group so it can read the spool.
 
 > The executor runs unprivileged with a read-only rootfs and all Linux capabilities dropped; only
-> `/tmp` (tmpfs) and `/var/lib/synmon` are writable. Egress to journey targets uses the default
-> Podman network; no ports are published.
+> `/tmp` (tmpfs) and `/var/lib/synmon` are writable. It is capped at 2 GiB of memory (no extra
+> swap) and 1024 processes (`PodmanArgs=` in the unit). Egress to journey targets uses the
+> default Podman network; no ports are published.
+>
+> Playwright starts Chromium **without its sandbox**, so this container is the only isolation
+> from the monitored pages. Treat `/var/lib/synmon` as untrusted input: the agent plugin (root)
+> only reads regular files (no symlinks/FIFOs, max 1 MiB) and drops results whose `target_host`
+> is not a plain host name, counting them as unparseable on the worker service.
+
+## Failure artifacts and retention
+
+A failed journey leaves a full-page screenshot in `/var/lib/synmon/artifacts`, named
+`<target_host>__<journey_id>.png` (mode `0640`). Artifacts older than
+`SYNMON_ARTIFACT_MAX_AGE_S` (default 7 days) are deleted at the start of each run.
+
+Playwright **traces are off by default**: a trace records every typed value (including
+passwords) and the request headers and bodies (session cookies). To debug a journey, set
+`SYNMON_TRACE=1` in `/etc/synmon/executor.env` temporarily; failures then also write
+`<target_host>__<journey_id>.trace.zip`. Unset it and delete the traces afterwards.
+
+Results of journeys that no longer exist (removed or renamed) are deleted from the spool at the
+end of a run, unless a journey file failed to load in that run.

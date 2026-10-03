@@ -71,7 +71,12 @@ is the SLI, and the check is built to keep that state honest:
   seen), journeys whose executor crashed, and journeys whose target host's `@login` failed (the
   outage is reported once, on the login service). Configure your availability/SLA views to
   exclude (or separately report) UNKNOWN, and watch the *Synthetic Worker Scheduler* service for
-  the cause.
+  the cause: it turns CRIT with the error when a whole run fails (e.g. the browser cannot start).
+- **Removed journeys disappear** — results of journeys that no longer exist are deleted from the
+  spool, so their services report "item not found" instead of staying stale forever.
+
+Failure screenshots are kept 7 days; Playwright traces are off by default because they record
+typed passwords and session cookies (see [`deploy/README.md`](deploy/README.md)).
 
 Set the piggyback rule *Processing of piggybacked host data* to keep data valid for at least the
 schedule interval plus one check interval, or journeys flap stale between runs.

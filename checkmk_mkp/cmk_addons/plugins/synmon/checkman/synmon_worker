@@ -7,7 +7,10 @@ description:
  One service per synthetic-monitoring worker host, sourced from the
  {synmon_worker} agent section (the executor's heartbeat plus an agent-side
  spool scan). Goes WARN/CRIT when the scheduler heartbeat is too old (the
- executor stalled) and WARN when unparseable spool files are present.
+ executor stalled), CRIT when the last run failed as a whole (e.g. the browser
+ did not start; the error is shown), and WARN when unparseable spool files
+ are present or journey files failed to load (invalid target host, or a
+ name/id that collides with another journey on the same host).
  Perfdata: heartbeat age, results found, journeys failed, unparseable count.
 
  Configure heartbeat-age thresholds with the ruleset

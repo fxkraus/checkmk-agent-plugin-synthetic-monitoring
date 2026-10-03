@@ -7,13 +7,15 @@ REPO_DIR="$(cd "$(dirname "$0")/../.." && pwd)"
 PYTHON="/omd/versions/default/bin/python3"
 DEPS_DIR="$(mktemp -d)"
 
-# The "test" dependency group from pyproject.toml (kept current by Dependabot).
-# Read with tomllib because the Checkmk image has no uv.
-TEST_DEPS_LINES="$("${PYTHON}" -c \
-    'import sys, tomllib; print("\n".join(tomllib.load(open(sys.argv[1], "rb"))["dependency-groups"]["test"]))' \
-    "${REPO_DIR}/pyproject.toml")"
-mapfile -t TEST_DEPS <<< "${TEST_DEPS_LINES}"
-"${PYTHON}" -m pip install --quiet --disable-pip-version-check --target "${DEPS_DIR}" "${TEST_DEPS[@]}"
+# The "test" dependency group with the uv.lock hashes. The Checkmk image has no uv, so the
+# caller exports it first (`make test-checkmk` and the CI pytest job do).
+REQUIREMENTS="${REPO_DIR}/.cache/checkmk-test-requirements.txt"
+if [[ ! -f "${REQUIREMENTS}" ]]; then
+    echo "missing ${REQUIREMENTS}; run: uv export --frozen --only-group test --no-emit-project --no-emit-workspace --output-file .cache/checkmk-test-requirements.txt" >&2
+    exit 2
+fi
+"${PYTHON}" -m pip install --quiet --disable-pip-version-check --require-hashes \
+    --target "${DEPS_DIR}" --requirement "${REQUIREMENTS}"
 
 # Fail loudly instead of letting the test modules be skipped
 "${PYTHON}" -c "import cmk.agent_based.v2, cmk.base.api.bakery.register"
