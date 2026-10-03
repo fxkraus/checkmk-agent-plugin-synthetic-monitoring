@@ -178,3 +178,98 @@ def test_passes_through_run_error(tmp_path):
     buf = io.StringIO()
     mod.main(spool_dir=tmp_path / "nope", heartbeat_path=hb, out=buf)
     assert json.loads(buf.getvalue().splitlines()[1])["run_error"] == "Error: no browser"
+
+
+def _spool_with(tmp_path, *hosts):
+    spool = tmp_path / "spool"
+    spool.mkdir()
+    for i, host in enumerate(hosts):
+        (spool / f"{i:03d}.json").write_text(json.dumps(_result(host, f"j{i}")), "utf-8")
+    return spool
+
+
+def _run(mod, tmp_path, spool, allowed_hosts_path):
+    buf = io.StringIO()
+    mod.main(
+        spool_dir=spool,
+        heartbeat_path=tmp_path / "nohb.json",
+        out=buf,
+        allowed_hosts_path=allowed_hosts_path,
+    )
+    lines = buf.getvalue().splitlines()
+    headers = [line for line in lines if line.startswith("<<<<") and line != "<<<<>>>>"]
+    return json.loads(lines[1]), headers
+
+
+def test_allowlist_limits_piggyback_target_hosts(tmp_path):
+    mod = _load()
+    spool = _spool_with(tmp_path, "a.example.com", "victim.example.com", "b.example.com")
+    allowed = tmp_path / "allowed_hosts"
+    allowed.write_text("# hosts of segment 1\na.example.com\n\n  b.example.com  # web\n", "utf-8")
+
+    worker, headers = _run(mod, tmp_path, spool, allowed)
+
+    assert headers == ["<<<<a.example.com>>>>", "<<<<b.example.com>>>>"]
+    assert worker["allowlist"] is True
+    assert worker["not_allowed"] == 1 and worker["results_found"] == 2
+
+
+def test_without_allowlist_every_valid_host_passes_and_is_flagged(tmp_path):
+    mod = _load()
+    spool = _spool_with(tmp_path, "a.example.com")
+
+    worker, headers = _run(mod, tmp_path, spool, tmp_path / "missing")
+
+    assert headers == ["<<<<a.example.com>>>>"]
+    assert worker["allowlist"] is False and worker["not_allowed"] == 0
+
+
+def test_unreadable_allowlist_fails_closed(tmp_path):
+    mod = _load()
+    spool = _spool_with(tmp_path, "a.example.com")
+    real = tmp_path / "real_allowed"
+    real.write_text("a.example.com\n", "utf-8")
+    link = tmp_path / "allowed_hosts"
+    link.symlink_to(real)
+
+    worker, headers = _run(mod, tmp_path, spool, link)
+
+    assert headers == []
+    assert worker["allowlist"] is True and worker["not_allowed"] == 1
+
+
+def test_symlinked_spool_directory_is_not_followed(tmp_path):
+    mod = _load()
+    elsewhere = _spool_with(tmp_path, "a.example.com")
+    spool = tmp_path / "spool_link"
+    spool.symlink_to(elsewhere, target_is_directory=True)
+
+    worker, headers = _run(mod, tmp_path, spool, tmp_path / "missing")
+
+    assert headers == []
+    assert worker["results_found"] == 0 and worker["unparseable"] == 1
+
+
+def test_file_count_limit(tmp_path, monkeypatch):
+    mod = _load()
+    monkeypatch.setattr(mod, "MAX_FILES", 2)
+    spool = _spool_with(
+        tmp_path, "a.example.com", "b.example.com", "c.example.com", "d.example.com"
+    )
+
+    worker, headers = _run(mod, tmp_path, spool, tmp_path / "missing")
+
+    assert headers == ["<<<<a.example.com>>>>", "<<<<b.example.com>>>>"]
+    assert worker["overflow"] == 2
+
+
+def test_total_size_limit(tmp_path, monkeypatch):
+    mod = _load()
+    spool = _spool_with(tmp_path, "a.example.com", "b.example.com", "c.example.com")
+    one_file = (spool / "000.json").stat().st_size
+    monkeypatch.setattr(mod, "MAX_TOTAL_BYTES", one_file + 1)
+
+    worker, headers = _run(mod, tmp_path, spool, tmp_path / "missing")
+
+    assert len(headers) == 2
+    assert worker["overflow"] == 1

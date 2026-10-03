@@ -7,6 +7,7 @@
 #
 # Usage: sudo ./install.sh [--image REF] [--worker-id ID] [--schedule '*:0/5']
 #                          [--journeys DIR] [--agent-user USER]
+#                          [--allowed-hosts host1,host2,...]
 set -euo pipefail
 
 SYNMON_USER="${SYNMON_USER:-synmon}"
@@ -17,11 +18,14 @@ IMAGE="${SYNMON_IMAGE:-registry.internal.example/synmon/executor@sha256:REPLACE_
 SCHEDULE="${SYNMON_SCHEDULE:-*:0/5}"
 WORKER_ID="${SYNMON_WORKER_ID:-$(hostname -s)}"
 AGENT_USER="${SYNMON_AGENT_USER:-}"
+# Target hosts the agent plugin may send piggyback data to (/etc/synmon/allowed_hosts).
+ALLOWED_HOSTS="${SYNMON_ALLOWED_HOSTS:-}"
+ALLOWED_HOSTS_FILE=/etc/synmon/allowed_hosts
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 usage() {
-  sed -n '2,11p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+  sed -n '2,10p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
 }
 
 while [[ "$#" -gt 0 ]]; do
@@ -31,6 +35,7 @@ while [[ "$#" -gt 0 ]]; do
     --schedule) SCHEDULE="$2"; shift 2 ;;
     --journeys) JOURNEYS_DIR="$2"; shift 2 ;;
     --agent-user) AGENT_USER="$2"; shift 2 ;;
+    --allowed-hosts) ALLOWED_HOSTS="$2"; shift 2 ;;
     -h|--help) usage; exit 0 ;;
     *) echo "unknown argument: $1" >&2; usage; exit 2 ;;
   esac
@@ -55,6 +60,18 @@ require --journeys "$JOURNEYS_DIR" '^/[A-Za-z0-9._/-]+$'
 require --schedule "$SCHEDULE" '^[A-Za-z0-9*:/.,~ -]+$'
 if [[ -n "$AGENT_USER" ]]; then
   require --agent-user "$AGENT_USER" '^[a-z_][a-z0-9_-]*[$]?$'
+fi
+# Same host-name characters the contract and the agent plugin accept, comma-separated.
+if [[ -n "$ALLOWED_HOSTS" ]]; then
+  require --allowed-hosts "$ALLOWED_HOSTS" \
+    '^[A-Za-z0-9][A-Za-z0-9._-]{0,252}(,[A-Za-z0-9][A-Za-z0-9._-]{0,252})*$'
+fi
+if [[ "$IMAGE" == *REPLACE_WITH_DIGEST* ]]; then
+  echo "--image: set the executor image (the default is a placeholder)" >&2
+  exit 2
+fi
+if [[ ! "$IMAGE" =~ @sha256:[0-9a-f]{64}$ ]]; then
+  echo "warning: --image is not pinned by digest (@sha256:...): $IMAGE" >&2
 fi
 
 if ! systemd-analyze calendar "$SCHEDULE" >/dev/null; then
@@ -86,8 +103,16 @@ fi
 install -d -o "$uid" -g "$gid" -m 2750 \
   "$SYNMON_HOME" "$SYNMON_HOME/spool" "$SYNMON_HOME/artifacts"
 install -d -m 0755 /etc/synmon
-if [[ ! -d "$JOURNEYS_DIR" ]]; then
-  install -d -o "$uid" -g "$gid" -m 0750 "$JOURNEYS_DIR"
+# Journey modules are code the executor imports: root owns them, synmon may only read them.
+# Re-running also fixes the owner of a directory created by an older install.sh.
+install -d -o root -g "$gid" -m 0750 "$JOURNEYS_DIR"
+
+# Target-host allowlist, read by the (root) agent plugin. Root-owned: the executor container,
+# whose browser renders untrusted pages, cannot change which hosts it may report for.
+if [[ -n "$ALLOWED_HOSTS" ]]; then
+  tr ',' '\n' <<<"$ALLOWED_HOSTS" >"$ALLOWED_HOSTS_FILE.tmp"
+  chmod 0644 "$ALLOWED_HOSTS_FILE.tmp"
+  mv -f "$ALLOWED_HOSTS_FILE.tmp" "$ALLOWED_HOSTS_FILE"
 fi
 
 # 3. Env file (never overwrite an operator-edited one).
@@ -115,6 +140,14 @@ chmod 0644 /etc/containers/systemd/synmon-executor.container \
 systemctl daemon-reload
 systemctl enable --now synmon-executor.timer
 
+if ! podman image exists "$IMAGE"; then
+  echo "warning: image not loaded yet; every run fails until you load it: $IMAGE" >&2
+fi
+if [[ ! -f "$ALLOWED_HOSTS_FILE" ]]; then
+  echo "warning: no $ALLOWED_HOSTS_FILE; the worker service stays WARN until you re-run" \
+    "with --allowed-hosts host1,host2,..." >&2
+fi
+
 cat <<EOF
 synmon executor installed for worker '${WORKER_ID}' (schedule: ${SCHEDULE}).
 Verify:
@@ -122,5 +155,6 @@ Verify:
   systemctl start synmon-executor.service     # trigger one run now
   ls -l ${SYNMON_HOME}/spool ${SYNMON_HOME}/heartbeat.json
 Remember to: load the executor image (podman load/pull from the mirror), drop journey modules into
-${JOURNEYS_DIR}, and create podman secrets for any journey credentials.
+${JOURNEYS_DIR} (owned by root, group ${SYNMON_USER}, mode 0640), and create podman secrets for
+any journey credentials.
 EOF

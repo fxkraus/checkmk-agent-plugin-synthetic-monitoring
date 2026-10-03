@@ -280,6 +280,22 @@ def evaluate_worker(worker: dict, params: Mapping, now: float) -> WorkerOutcome:
         state = max(state, WARN)
         summary += f"; {len(load_errors)} journey file(s) failed to load"
         details.extend(load_errors)
+    not_allowed = int(_f(worker.get("not_allowed")))
+    if not_allowed:
+        state = max(state, WARN)
+        summary += f"; {not_allowed} result(s) for hosts not in the allowlist dropped"
+    overflow = int(_f(worker.get("overflow")))
+    if overflow:
+        state = max(state, WARN)
+        summary += f"; {overflow} spool file(s) not read (agent plugin read limit reached)"
+    # Absent (older agent plugin) says nothing; only an explicit False means "no allowlist".
+    if worker.get("allowlist") is False:
+        state = max(state, WARN)
+        summary += "; no target-host allowlist"
+        details.append(
+            "Without /etc/synmon/allowed_hosts on the worker, a compromised executor could send "
+            "piggyback data to any host (deploy/install.sh --allowed-hosts creates it)."
+        )
     run_error = worker.get("run_error")
     if run_error:
         # The whole run failed, so every journey is going stale; say why here.

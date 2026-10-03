@@ -29,6 +29,19 @@ def test_missing_heartbeat_is_unknown():
     assert "heartbeat" in out.summary.lower()
 
 
+def test_dropped_hosts_and_overflow_warn():
+    out = evaluate.evaluate_worker(_worker(not_allowed=2, allowlist=True), {}, now=1000.0)
+    assert out.state == WARN and "2 result(s) for hosts not in the allowlist" in out.summary
+    out = evaluate.evaluate_worker(_worker(overflow=7, allowlist=True), {}, now=1000.0)
+    assert out.state == WARN and "7 spool file(s) not read" in out.summary
+
+
+def test_missing_allowlist_warns_but_an_old_plugin_does_not():
+    out = evaluate.evaluate_worker(_worker(allowlist=False), {}, now=1000.0)
+    assert out.state == WARN and "no target-host allowlist" in out.summary
+    assert evaluate.evaluate_worker(_worker(), {}, now=1000.0).state == OK
+
+
 def test_heartbeat_age_levels_escalate():
     out = evaluate.evaluate_worker(
         _worker(), {"heartbeat_age_levels": (300.0, 600.0)}, now=1000.0 + 700
