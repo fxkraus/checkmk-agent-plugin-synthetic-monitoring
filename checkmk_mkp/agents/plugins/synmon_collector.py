@@ -17,7 +17,16 @@ SCHEMA_VERSION = "1.0.0"
 SPOOL_DIR = Path(os.environ.get("SYNMON_SPOOL_DIR", "/var/lib/synmon/spool"))
 HEARTBEAT_PATH = Path(os.environ.get("SYNMON_HEARTBEAT_PATH", "/var/lib/synmon/heartbeat.json"))
 # Root-owned, one host per line: the only target hosts this worker may send piggyback data to.
-ALLOWED_HOSTS_PATH = Path(os.environ.get("SYNMON_ALLOWED_HOSTS", "/etc/synmon/allowed_hosts"))
+# The first one that exists wins: SYNMON_ALLOWED_HOSTS, the Agent Bakery's file in the agent
+# config dir, then the one install.sh --allowed-hosts writes.
+ALLOWED_HOSTS_PATHS = (
+    [Path(os.environ["SYNMON_ALLOWED_HOSTS"])]
+    if os.environ.get("SYNMON_ALLOWED_HOSTS")
+    else [
+        Path(os.environ.get("MK_CONFDIR", "/etc/check_mk")) / "synmon_allowed_hosts",
+        Path("/etc/synmon/allowed_hosts"),
+    ]
+)
 MAX_FILE_BYTES = 1024 * 1024
 # Bound what a compromised executor can make the root agent read and print.
 MAX_FILES = 500
@@ -59,12 +68,13 @@ def _read_json(path, dir_fd=None):
     return json.loads(_read_bytes(path, dir_fd).decode("utf-8"))
 
 
-def _load_allowed_hosts(path: Path):
+def _load_allowed_hosts(paths):
     """The allowlist as a set, or None if there is none (then every valid host is accepted)."""
+    path = next((p for p in paths if os.path.lexists(p)), None)
+    if path is None:
+        return None
     try:
         text = _read_bytes(path).decode("utf-8")
-    except FileNotFoundError:
-        return None
     except (OSError, ValueError):
         return set()  # unreadable or tampered with: fail closed
     hosts = set()
@@ -161,9 +171,9 @@ def main(
     spool_dir: Path = SPOOL_DIR,
     heartbeat_path: Path = HEARTBEAT_PATH,
     out=sys.stdout,
-    allowed_hosts_path: Path = ALLOWED_HOSTS_PATH,
+    allowed_hosts_paths=ALLOWED_HOSTS_PATHS,
 ) -> None:
-    allowed_hosts = _load_allowed_hosts(allowed_hosts_path)
+    allowed_hosts = _load_allowed_hosts(allowed_hosts_paths)
     results, counts = _load_results(spool_dir, allowed_hosts)
     heartbeat = _load_heartbeat(heartbeat_path)
     _emit_worker(heartbeat, results, counts, allowed_hosts is not None, out)

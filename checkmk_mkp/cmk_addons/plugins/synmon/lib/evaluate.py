@@ -293,8 +293,10 @@ def evaluate_worker(worker: dict, params: Mapping, now: float) -> WorkerOutcome:
         state = max(state, WARN)
         summary += "; no target-host allowlist"
         details.append(
-            "Without /etc/synmon/allowed_hosts on the worker, a compromised executor could send "
-            "piggyback data to any host (deploy/install.sh --allowed-hosts creates it)."
+            "Without a target-host allowlist on the worker, a compromised executor could send "
+            "piggyback data to any host. Set 'Allowed target hosts' in the agent rule "
+            "'Synthetic monitoring: agent deployment' (Agent Bakery) or run "
+            "deploy/install.sh --allowed-hosts."
         )
     run_error = worker.get("run_error")
     if run_error:

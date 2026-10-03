@@ -1,11 +1,14 @@
 """Agent Bakery ruleset: deploy the synmon agent plugin to worker hosts."""
 
-from cmk.rulesets.v1 import Help, Title
+from cmk.rulesets.v1 import Help, Label, Message, Title
 from cmk.rulesets.v1.form_specs import (
     DictElement,
     Dictionary,
+    List,
+    String,
     TimeMagnitude,
     TimeSpan,
+    validators,
 )
 from cmk.rulesets.v1.rule_specs import AgentConfig, Topic
 
@@ -22,6 +25,29 @@ def _form_synmon_bakery() -> Dictionary:
                         "the spool, so this is cheap."
                     ),
                     displayed_magnitudes=[TimeMagnitude.SECOND, TimeMagnitude.MINUTE],
+                ),
+            ),
+            "allowed_hosts": DictElement(
+                parameter_form=List(
+                    title=Title("Allowed target hosts"),
+                    help_text=Help(
+                        "The only Checkmk hosts this worker may send journey results to (as "
+                        "piggyback data). Results for other hosts are dropped and counted on the "
+                        "worker service. Deployed to /etc/check_mk/synmon_allowed_hosts, which "
+                        "takes precedence over /etc/synmon/allowed_hosts. An empty list forwards "
+                        "nothing. Without this setting and without /etc/synmon/allowed_hosts, "
+                        "every host is accepted and the worker service is WARN."
+                    ),
+                    element_template=String(
+                        custom_validate=(
+                            validators.MatchRegex(
+                                regex=r"^[A-Za-z0-9][A-Za-z0-9._-]{0,252}$",
+                                error_msg=Message("Enter a Checkmk host name."),
+                            ),
+                        ),
+                    ),
+                    add_element_label=Label("Add host"),
+                    editable_order=False,
                 ),
             ),
         },
