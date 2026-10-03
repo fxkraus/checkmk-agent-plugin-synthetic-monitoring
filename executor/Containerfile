@@ -4,7 +4,7 @@
 # is the supported Ubuntu variant. Build from the repo root after `make wheelhouse`
 # (see deploy/README.md). Air-gapped: pass both images from the internal mirror, pinned by
 # digest, and give the build access to a UBI 9 repo mirror (or build on the connected side).
-ARG PLAYWRIGHT_IMAGE=mcr.microsoft.com/playwright/python:v1.49.0-noble@sha256:35a390e70ab8ba7fbc909dc01af2329e287e89ccc8fb2f04a1a7ae94cacc5c30
+ARG PLAYWRIGHT_IMAGE=mcr.microsoft.com/playwright/python:v1.63.0-noble@sha256:72bd171a9ffc2b4b59532aaa6210e21014d07093120dc25528870c0b840da1f0
 ARG BASE_IMAGE=registry.access.redhat.com/ubi9/ubi-minimal:9.8-1790754119@sha256:1d7c5517a4a1a8e2688620b39ee980e82505ca1ab7ae5541b5463120ae9b3897
 
 # The executor always launches headless, which Playwright serves from the headless shell; the

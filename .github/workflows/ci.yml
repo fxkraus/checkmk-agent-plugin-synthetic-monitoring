@@ -217,8 +217,8 @@ jobs:
           fi
 
   # Merge Dependabot minor/patch updates of the uv and pre-commit ecosystems
-  # once every other job has passed. Docker and GitHub Actions updates and all
-  # major updates are left open for manual review.
+  # once every other job has passed. Docker and GitHub Actions updates, all
+  # major updates and Playwright (the browser) are left open for manual review.
   #
   # Gated with `needs:` here instead of a separate workflow with
   # `gh pr merge --auto`: auto-merge relies on a branch ruleset requiring
@@ -244,6 +244,7 @@ jobs:
       - name: Squash-merge
         if: >-
           contains(fromJSON('["uv", "pre_commit"]'), steps.metadata.outputs.package-ecosystem) &&
+          !contains(steps.metadata.outputs.dependency-names, 'playwright') &&
           (steps.metadata.outputs.update-type == 'version-update:semver-minor' ||
            steps.metadata.outputs.update-type == 'version-update:semver-patch')
         run: gh pr merge --squash --delete-branch "$PR_URL"

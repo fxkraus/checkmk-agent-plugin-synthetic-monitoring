@@ -4,7 +4,7 @@
 # Minor/patch updates are grouped into a single PR per ecosystem. uv and
 # pre-commit updates are auto-merged by the dependabot-merge job in
 # .github/workflows/ci.yml once all CI checks pass; Docker and GitHub Actions
-# updates and all major updates need a manual review. The auto-merged
+# updates, all major updates and Playwright need a manual review. The auto-merged
 # ecosystems wait 7 days after a release, so a compromised version is likely
 # yanked before it is proposed.
 #
@@ -32,17 +32,20 @@ updates:
     cooldown:
       default-days: 7
     groups:
+      # Playwright bundles the monitoring browser (Chromium runs unsandboxed
+      # against monitored pages), so it must not fall behind. Its own PR is
+      # never auto-merged: tests/test_playwright_pins.py fails it until the
+      # Playwright image tag + digest (Containerfiles, Makefile, dev
+      # container) are bumped in the same PR.
+      playwright:
+        patterns:
+          - "playwright"
       minor-and-patch:
         update-types:
           - "minor"
           - "patch"
     labels:
       - "dependencies"
-    ignore:
-      # The playwright pin must match the Chromium build in the Playwright base
-      # image (executor Containerfiles, Makefile, dev container); bumps are a
-      # deliberate step that moves all of them together.
-      - dependency-name: "playwright"
 
   # ── Docker (dev container: Python base image + uv) ─────────────────────────
   - package-ecosystem: "docker"

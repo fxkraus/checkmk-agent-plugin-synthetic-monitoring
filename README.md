@@ -157,7 +157,10 @@ Two layers provision a worker:
 - **Dependabot** (`.github/dependabot.yml`) opens weekly, grouped minor/patch PRs for uv,
   pre-commit, GitHub Actions and the dev-container image. uv and pre-commit minor/patch updates
   are squash-merged by CI's `dependabot-merge` job once every other job passed;
-  Actions, Docker and all major updates wait for a manual review. (The merge is gated with
+  Actions, Docker and all major updates wait for a manual review. Playwright gets its own PR
+  that is never auto-merged: Chromium runs unsandboxed against the monitored pages, so keep it
+  current, but `tests/test_playwright_pins.py` fails that PR until the Playwright image tag and
+  digest (Containerfiles, `Makefile`, dev container) are bumped with it. (The merge is gated with
   `needs:` inside CI rather than GitHub auto-merge, so it does not depend on a branch ruleset
   requiring these checks.)
 - **Conventional commits** (`.github/workflows/commits.yml`) checks the PR title and every commit
