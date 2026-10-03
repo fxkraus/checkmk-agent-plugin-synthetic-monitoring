@@ -114,3 +114,9 @@ class WorkerHealth(_Base):
     run_error: str | None = None
     results_found: int = 0
     unparseable: int = 0
+    # Results dropped because their target_host is not in the worker's allowlist.
+    not_allowed: int = 0
+    # Spool files not read because the agent plugin's file-count/size limit was reached.
+    overflow: int = 0
+    # Whether the worker has a target-host allowlist (None: agent plugin too old to say).
+    allowlist: bool | None = None

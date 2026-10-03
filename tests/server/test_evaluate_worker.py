@@ -72,3 +72,16 @@ def test_run_error_is_crit_and_explained():
 def test_non_list_load_errors_are_ignored():
     out = evaluate.evaluate_worker(_worker(load_errors="oops"), {}, now=1100.0)
     assert out.state == OK
+
+
+def test_dropped_hosts_and_overflow_warn():
+    out = evaluate.evaluate_worker(_worker(not_allowed=2, allowlist=True), {}, now=1000.0)
+    assert out.state == WARN and "2 result(s) for hosts not in the allowlist" in out.summary
+    out = evaluate.evaluate_worker(_worker(overflow=7, allowlist=True), {}, now=1000.0)
+    assert out.state == WARN and "7 spool file(s) not read" in out.summary
+
+
+def test_missing_allowlist_warns_but_an_old_plugin_does_not():
+    out = evaluate.evaluate_worker(_worker(allowlist=False), {}, now=1000.0)
+    assert out.state == WARN and "no target-host allowlist" in out.summary
+    assert evaluate.evaluate_worker(_worker(), {}, now=1000.0).state == OK

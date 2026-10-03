@@ -104,8 +104,12 @@ failed → worker service CRIT); the agent plugin combines it with a spool scan 
   failure screenshots are `<target_host>__<journey_id>.png`, mode `0640`, pruned after
   `SYNMON_ARTIFACT_MAX_AGE_S` (7 days).
 - **Spool is untrusted input** for the root agent plugin (Chromium runs without its sandbox and the
-  container can write `/var/lib/synmon`): the collector reads only regular files (`O_NOFOLLOW`, no
-  FIFOs, ≤ 1 MiB) and drops results with an invalid `target_host`. Discovery rejects invalid hosts
+  container can write `/var/lib/synmon`): the collector opens the spool dir with `O_NOFOLLOW` and
+  reads entries via `dir_fd`, only regular files (no FIFOs, ≤ 1 MiB, ≤ 500 files / 16 MiB total),
+  and drops results with an invalid `target_host` or one missing from the root-owned
+  `/etc/synmon/allowed_hosts` (`install.sh --allowed-hosts`; absent file → worker WARN, unreadable
+  → fail closed). Counts go to `synmon_worker` (`unparseable`, `not_allowed`, `overflow`,
+  `allowlist`). Discovery rejects invalid hosts
   and colliding `(host, journey_id)` / `(host, name)` as load errors. Results of removed journeys are
   pruned from the spool (not in a run with load errors).
 - **Commits**: Conventional Commits (`<type>[(scope)][!]: <description>`, ≤ 100 chars) — they drive

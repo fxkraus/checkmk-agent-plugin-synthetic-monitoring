@@ -105,11 +105,19 @@ sudo ./install.sh \
   --image registry.internal.example/synmon/executor@sha256:<digest> \
   --worker-id worker01 \
   --schedule '*:0/5' \
-  --journeys /etc/synmon/journeys
+  --journeys /etc/synmon/journeys \
+  --allowed-hosts app.example.com,shop.example.com
 ```
 
 All flags have `SYNMON_*` env equivalents. The script is idempotent — re-run it to update the
-image digest or schedule.
+image digest, schedule or allowed hosts. It refuses the placeholder image, warns if the image is
+not pinned by digest or not loaded yet, and (re)sets the journeys dir to `root:synmon 0750`.
+
+`--allowed-hosts` writes `/etc/synmon/allowed_hosts` (root-owned, one host per line, `#`
+comments): the agent plugin forwards only results for these target hosts and counts the rest on
+the worker service. Without the file every valid host name is forwarded and the worker service is
+WARN ("no target-host allowlist"). If the file exists but cannot be read safely (e.g. it is a
+symlink), nothing is forwarded.
 
 `--schedule` is a systemd `OnCalendar` expression (default `*:0/5`, every 5 minutes on the
 clock). A fixed cadence — rather than "N minutes after the last run" — means each result covers
@@ -121,8 +129,9 @@ instead of the whole run being killed by systemd and every service going stale.
 
 ## Journeys and secrets
 
-- Drop journey modules into the journeys dir (default `/etc/synmon/journeys`); they are mounted
-  read-only at `/journeys` in the container.
+- Drop journey modules into the journeys dir (default `/etc/synmon/journeys`) as `root:synmon`
+  mode `0640`; they are mounted read-only at `/journeys` in the container. They are code, so the
+  `synmon` runtime user must not be able to change them.
 - Provide journey credentials as **podman secrets**, never in the env file or the image:
   ```sh
   printf '%s' "$APP_PASSWORD" | sudo podman secret create synmon-app-password -
@@ -150,8 +159,10 @@ group so it can read the spool.
 >
 > Playwright starts Chromium **without its sandbox**, so this container is the only isolation
 > from the monitored pages. Treat `/var/lib/synmon` as untrusted input: the agent plugin (root)
-> only reads regular files (no symlinks/FIFOs, max 1 MiB) and drops results whose `target_host`
-> is not a plain host name, counting them as unparseable on the worker service.
+> does not follow a symlinked spool directory, only reads regular files (no symlinks/FIFOs, max
+> 1 MiB each, at most 500 files / 16 MiB per call), drops results whose `target_host` is not a
+> plain host name or not in `/etc/synmon/allowed_hosts`, and reports all of it on the worker
+> service.
 
 ## Failure artifacts and retention
 

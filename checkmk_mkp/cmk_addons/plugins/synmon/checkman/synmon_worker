@@ -10,7 +10,10 @@ description:
  executor stalled), CRIT when the last run failed as a whole (e.g. the browser
  did not start; the error is shown), and WARN when unparseable spool files
  are present or journey files failed to load (invalid target host, or a
- name/id that collides with another journey on the same host).
+ name/id that collides with another journey on the same host). It is also
+ WARN when results for target hosts outside the worker's allowlist
+ (/etc/synmon/allowed_hosts) were dropped, when the agent plugin's read
+ limit (500 files / 16 MiB) was reached, or when the worker has no allowlist.
  Perfdata: heartbeat age, results found, journeys failed, unparseable count.
 
  Configure heartbeat-age thresholds with the ruleset

@@ -1,6 +1,18 @@
 {
   "description": "The `synmon_worker` section payload: heartbeat fields + agent-computed scan counts.",
   "properties": {
+    "allowlist": {
+      "anyOf": [
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Allowlist"
+    },
     "executor": {
       "anyOf": [
         {
@@ -115,6 +127,16 @@
       },
       "title": "Load Errors",
       "type": "array"
+    },
+    "not_allowed": {
+      "default": 0,
+      "title": "Not Allowed",
+      "type": "integer"
+    },
+    "overflow": {
+      "default": 0,
+      "title": "Overflow",
+      "type": "integer"
     },
     "results_found": {
       "default": 0,
