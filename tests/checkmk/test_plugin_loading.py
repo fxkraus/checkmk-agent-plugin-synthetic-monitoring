@@ -61,3 +61,17 @@ def test_manifest_parts_are_known_to_checkmk():
     manifest = Path(__file__).resolve().parents[2] / "checkmk_mkp" / "manifest.json"
     for part in json.loads(manifest.read_text())["files"]:
         PackagePart(part)  # raises ValueError for a part Checkmk would not install
+
+
+def test_worker_check_alerts_on_a_stale_heartbeat_without_any_rule():
+    from cmk_addons.plugins.synmon.agent_based import synmon_worker
+
+    params = synmon_worker.check_plugin_synmon_worker.check_default_parameters
+    assert params == {"heartbeat_age_levels": ("fixed", (600.0, 1800.0))}
+
+
+def test_declared_step_metrics_match_what_the_check_emits():
+    from cmk_addons.plugins.synmon.graphing import synmon as graphing
+    from cmk_addons.plugins.synmon.lib import evaluate
+
+    assert len(graphing._STEP_NAMES) == evaluate.MAX_STEP_METRICS

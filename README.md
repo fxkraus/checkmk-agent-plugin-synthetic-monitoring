@@ -71,7 +71,12 @@ is the SLI, and the check is built to keep that state honest:
   seen), journeys whose executor crashed, and journeys whose target host's `@login` failed (the
   outage is reported once, on the login service). Configure your availability/SLA views to
   exclude (or separately report) UNKNOWN, and watch the *Synthetic Worker Scheduler* service for
-  the cause: it turns CRIT with the error when a whole run fails (e.g. the browser cannot start).
+  the cause: it turns CRIT with the error when a whole run fails (e.g. the browser cannot start),
+  and WARN/CRIT when its heartbeat is older than 10/30 min (default, also without a rule) — e.g.
+  the timer stopped or the container never started.
+- **Timestamps must be trustworthy** — a result without a valid `started_at` counts as stale, and
+  one more than 60 s in the future turns the service WARN. Keep worker clocks NTP-synced with the
+  Checkmk server.
 - **Removed journeys disappear** — results of journeys that no longer exist are deleted from the
   spool, so their services report "item not found" instead of staying stale forever.
 

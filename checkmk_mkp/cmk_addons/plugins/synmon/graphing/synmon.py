@@ -38,9 +38,11 @@ _STEP_COLORS = [
     Color.LIGHT_PINK,
     Color.LIGHT_BROWN,
 ]
+# Keep in sync with evaluate.MAX_STEP_METRICS (the check emits no step metric beyond it). A step
+# metric is identified by its position: inserting a step shifts the history of all later ones.
 _STEP_NAMES = [f"synmon_step_{i}_duration" for i in range(1, 9)]
 
-# Declare per-step metrics (capped at 8); bind each to a module global so the loader registers it.
+# Declare per-step metrics; bind each to a module global so the loader registers it.
 for _i, (_name, _color) in enumerate(zip(_STEP_NAMES, _STEP_COLORS, strict=True), start=1):
     globals()[f"metric_synmon_step_{_i}_duration"] = Metric(
         name=_name,

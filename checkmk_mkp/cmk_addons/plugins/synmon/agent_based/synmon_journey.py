@@ -18,7 +18,7 @@ from cmk_addons.plugins.synmon.lib import evaluate, parsing
 
 
 def parse_synmon_journey(string_table: StringTable) -> dict[str, dict]:
-    return {j["journey_name"]: j for j in parsing.parse_journey_section(string_table)}
+    return parsing.index_journeys(parsing.parse_journey_section(string_table))
 
 
 agent_section_synmon_journey = AgentSection(

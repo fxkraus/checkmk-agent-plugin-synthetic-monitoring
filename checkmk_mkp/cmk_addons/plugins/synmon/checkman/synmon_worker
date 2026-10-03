@@ -13,5 +13,6 @@ description:
  name/id that collides with another journey on the same host).
  Perfdata: heartbeat age, results found, journeys failed, unparseable count.
 
- Configure heartbeat-age thresholds with the ruleset
+ Heartbeat-age thresholds default to WARN at 10 min and CRIT at 30 min, also
+ without any rule; change them with the ruleset
  "Synthetic monitoring: worker scheduler".
