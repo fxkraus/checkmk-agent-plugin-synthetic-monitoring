@@ -31,6 +31,10 @@ dev = [
     "synmon-contract",
     "synmon-executor",
 ]
+# Used by the CI release job (see [tool.semantic_release])
+release = [
+    "python-semantic-release==10.7.0",
+]
 
 [tool.ruff]
 line-length = 100
@@ -47,3 +51,29 @@ check_untyped_defs = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests", "tests/server", "tests/integration/mocksite", "contract/tests", "executor/tests", "agent_plugin/tests"]
+
+# Releases are cut by CI on every push to main from the Conventional Commit subjects since the
+# last tag (feat -> minor, fix/perf -> patch, "!"/BREAKING CHANGE -> major). The released artifact
+# is the MKP, so the version lives in checkmk_mkp/manifest.json. scripts/check_commits.py
+# enforces the subject format on pull requests and in the commit-msg hook.
+[tool.semantic_release]
+# Not version_variables: its pattern also rewrites "version.min_required" in the JSON manifest.
+# build_mkp.py stamps the manifest and builds dist/synmon-<version>.mkp in one step.
+build_command = "python3 scripts/build_mkp.py --set-version \"$NEW_VERSION\""
+assets = ["checkmk_mkp/manifest.json"]
+tag_format = "v{version}"
+commit_message = "chore(release): v{version}"
+commit_author = "github-actions[bot] <41898282+github-actions[bot]@users.noreply.github.com>"
+allow_zero_version = false
+
+[tool.semantic_release.branches.main]
+match = "main"
+prerelease = false
+
+[tool.semantic_release.commit_parser_options]
+# A squash merge's title (checked in CI) decides the bump, not the squashed commit list.
+parse_squash_commits = false
+
+[tool.semantic_release.remote]
+type = "github"
+token = { env = "GH_TOKEN" }

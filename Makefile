@@ -17,7 +17,7 @@ CONTAINERFILE_playwright := executor/Containerfile.playwright
 CONTAINERFILE = $(or $(CONTAINERFILE_$(VARIANT)),$(error VARIANT must be ubi9 or playwright))
 
 .PHONY: test test-checkmk lint typecheck secrets format schema mkp checkmk-up checkmk-down integration \
-	wheelhouse image image-test
+	wheelhouse image image-test hooks
 
 test:
 	$(RUN) uv run pytest -q
@@ -52,6 +52,13 @@ lint:
 
 typecheck:
 	$(RUN) uv run --locked mypy
+
+# Reject non-Conventional-Commit messages locally (CI checks PRs too). The hook only needs the
+# host's python3 (standard library), nothing is installed.
+hooks:
+	printf '#!/bin/sh\nexec python3 scripts/check_commits.py --message-file "$$1"\n' \
+		>"$$(git rev-parse --git-path hooks)/commit-msg"
+	chmod +x "$$(git rev-parse --git-path hooks)/commit-msg"
 
 # Full git history, like the CI secrets job.
 secrets:

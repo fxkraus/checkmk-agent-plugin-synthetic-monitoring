@@ -1,0 +1,29 @@
+# Releases are derived from Conventional Commit subjects (pyproject.toml [tool.semantic_release]).
+# Squash, merge and rebase merges are all enabled, so the PR title (the squash subject) and every
+# commit of the PR must comply. Runs on title edits too, without re-running the whole CI.
+name: Conventional commits
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, edited]
+
+permissions:
+  contents: read
+
+jobs:
+  commits:
+    name: conventional commits
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Check PR title and commit subjects
+        env:
+          # Untrusted input is read through the environment (never inlined into the shell).
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: python3 scripts/check_commits.py --title "$PR_TITLE" --range "$BASE_SHA..$HEAD_SHA"

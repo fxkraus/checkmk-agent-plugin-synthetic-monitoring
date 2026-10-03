@@ -86,3 +86,37 @@ def test_staged_agent_plugin_matches_authoritative_source():
     staged = (_STAGE_DIR / "agents" / "plugins" / "synmon_collector.py").read_bytes()
     source = (_REPO_ROOT / "agent_plugin" / "synmon_collector.py").read_bytes()
     assert staged == source
+
+
+def _staged_copy(tmp_path: Path) -> Path:
+    stage = tmp_path / "stage"
+    stage.mkdir()
+    (stage / "manifest.json").write_text((_STAGE_DIR / "manifest.json").read_text())
+    return stage
+
+
+def test_set_version_rewrites_only_the_version_line(tmp_path):
+    builder = _load_builder()
+    stage = _staged_copy(tmp_path)
+    before = (stage / "manifest.json").read_text()
+
+    builder.set_manifest_version(stage, "9.8.7")
+
+    after = (stage / "manifest.json").read_text()
+    changed = [
+        (a, b) for a, b in zip(before.splitlines(), after.splitlines(), strict=True) if a != b
+    ]
+    assert len(changed) == 1 and changed[0][1].strip() == '"version": "9.8.7",'
+    manifest = json.loads(after)
+    assert manifest["version"] == "9.8.7"
+    assert manifest["version.min_required"] == json.loads(before)["version.min_required"]
+
+
+def test_set_version_rejects_non_semver(tmp_path):
+    import pytest
+
+    builder = _load_builder()
+    stage = _staged_copy(tmp_path)
+    for bad in ("1.2", "v1.2.3", "1.2.3-rc1", '1.2.3", "x'):
+        with pytest.raises(ValueError):
+            builder.set_manifest_version(stage, bad)

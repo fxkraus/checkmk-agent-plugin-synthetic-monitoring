@@ -88,6 +88,7 @@ make secrets       # gitleaks over the full git history
 make format        # apply ruff formatting
 make schema        # regenerate the committed JSON Schema
 make mkp           # build dist/synmon-<version>.mkp
+make hooks         # install the commit-msg hook (Conventional Commits check)
 make test-checkmk  # plug-in loading tests inside a real Checkmk image
                    # (CHECKMK_IMAGE=checkmk/check-mk-cloud:2.4.0-latest for 2.4)
 make wheelhouse    # collect the offline inputs for the executor image (needs network)
@@ -154,15 +155,30 @@ Two layers provision a worker:
   Actions, Docker and all major updates wait for a manual review. (The merge is gated with
   `needs:` inside CI rather than GitHub auto-merge, so it does not depend on a branch ruleset
   requiring these checks.)
-- **Release** (`.github/workflows/release.yml`) builds the `.mkp` and publishes a GitHub Release
-  with the package attached. It triggers on a pushed `v*` tag, or on demand from the **Actions**
-  tab (defaulting the tag to `v<manifest version>`).
+- **Conventional commits** (`.github/workflows/commits.yml`) checks the PR title and every commit
+  subject of a pull request with `scripts/check_commits.py` (also on title edits).
+- **Release** — the `release` job in CI runs on every push to `main` once all other jobs passed.
+  [python-semantic-release](https://python-semantic-release.readthedocs.io/) (pinned in the
+  `release` dependency group, hash-locked in `uv.lock`) derives the next version from the commit
+  subjects since the last `v*` tag, writes it to `checkmk_mkp/manifest.json`, builds the MKP,
+  commits `chore(release): vX.Y.Z`, tags it and publishes a GitHub Release with the `.mkp`
+  attached. A failed release is recovered by re-running the job.
 
-```sh
-# Release the version currently in checkmk_mkp/manifest.json:
-git tag v1.0.0 && git push origin v1.0.0
-# …or click "Run workflow" on the Release action in the GitHub UI.
-```
+## Commit messages and versioning
+
+Commit subjects (and PR titles, which become the subject of a squash merge) follow
+[Conventional Commits](https://www.conventionalcommits.org/): `<type>[(scope)][!]: <description>`,
+at most 100 characters. They decide the next MKP version:
+
+| Subject | Release |
+|---|---|
+| `feat(executor): per-step screenshots` | minor (`1.2.0` → `1.3.0`) |
+| `fix: …` / `perf: …` | patch (`1.2.0` → `1.2.1`) |
+| `feat!: …` / `fix(api)!: …`, or a `BREAKING CHANGE:` footer | major (`1.2.0` → `2.0.0`) |
+| `build`, `chore`, `ci`, `docs`, `refactor`, `revert`, `style`, `test` | none |
+
+Dependabot uses `build(deps)` / `ci(deps)`, so dependency updates never release on their own.
+`make hooks` installs a `commit-msg` hook that runs the same check locally.
 
 ## Security
 
