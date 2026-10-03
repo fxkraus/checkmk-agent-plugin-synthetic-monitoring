@@ -114,7 +114,7 @@ failed → worker service CRIT); the agent plugin combines it with a spool scan 
   pruned from the spool (not in a run with load errors).
 - **Commits**: Conventional Commits (`<type>[(scope)][!]: <description>`, ≤ 100 chars) — they drive
   releases (see Releases).
-- **Air-gap**: pin all versions (Playwright 1.49.0, Python 3.12, uv 0.5.11, Checkmk 2.4.0p32);
+- **Air-gap**: pin all versions (Playwright 1.63.0, Python 3.12, uv 0.5.11, Checkmk 2.4.0p32);
   no runtime internet; browsers vendored in the image (`PLAYWRIGHT_BROWSERS_PATH`). Executor base
   images are pinned by digest (`ARG` defaults + `Makefile`); CI installs only from `uv.lock` hashes.
   The dev container's uv 0.5.11 rewrites `uv.lock` in an older format — change the lock with a

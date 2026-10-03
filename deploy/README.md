@@ -40,9 +40,9 @@ lock.
 
 ```sh
 make wheelhouse                                   # -> ./wheelhouse (WHEEL_ARCH=aarch64 for arm64)
-podman pull mcr.microsoft.com/playwright/python:v1.49.0-noble
+podman pull mcr.microsoft.com/playwright/python:v1.63.0-noble
 podman pull registry.access.redhat.com/ubi9/ubi-minimal:latest     # ubi9 variant only
-podman save -o base-images.tar mcr.microsoft.com/playwright/python:v1.49.0-noble \
+podman save -o base-images.tar mcr.microsoft.com/playwright/python:v1.63.0-noble \
   registry.access.redhat.com/ubi9/ubi-minimal:latest
 ```
 
