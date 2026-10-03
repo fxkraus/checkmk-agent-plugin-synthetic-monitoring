@@ -156,6 +156,58 @@ jobs:
       - name: Run image against the mock site
         run: make image-test
 
+  # On main, once every other job passed: release from the Conventional Commit subjects since the
+  # last tag (pyproject.toml [tool.semantic_release]): feat -> minor, fix/perf -> patch, "!" ->
+  # major; build/ci/chore/docs/refactor/style/test release nothing. python-semantic-release
+  # stamps checkmk_mkp/manifest.json, builds the MKP, commits "chore(release): vX.Y.Z", tags and
+  # creates the GitHub Release; the next step attaches the MKP. To recover from a failed run,
+  # re-run this job.
+  release:
+    name: release
+    needs: [lint, secrets, checks, pytest, integration, image]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    concurrency:
+      group: release
+      cancel-in-progress: false
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          fetch-depth: 0
+          # semantic-release pushes with GH_TOKEN; keep the token out of .git/config.
+          persist-credentials: false
+
+      # Release exactly the commit CI tested; the push is rejected if main moved meanwhile.
+      - name: Check out main at the tested commit
+        run: git switch -C main "$GITHUB_SHA"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7  # v10.2.0
+
+      # From uv.lock (hash-checked), not the semantic-release action, whose image pip-installs
+      # unpinned dependencies at run time.
+      - name: Version, tag and GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: uv run --locked --only-group release semantic-release version --no-changelog
+
+      # Idempotent: attaches the MKP if missing (e.g. on a re-run), never replaces an asset.
+      # Without a new release, the asset of the current version is already there.
+      - name: Attach the MKP
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          version="$(python3 scripts/build_mkp.py --print-version)"
+          asset="synmon-${version}.mkp"
+          if gh release view "v${version}" --json assets --jq '.assets[].name' | grep -qxF "${asset}"; then
+            echo "v${version} already has ${asset}."
+          else
+            python3 scripts/build_mkp.py
+            gh release upload "v${version}" "dist/${asset}"
+          fi
+
   # Merge Dependabot minor/patch updates of the uv and pre-commit ecosystems
   # once every other job has passed. Docker and GitHub Actions updates and all
   # major updates are left open for manual review.

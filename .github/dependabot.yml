@@ -21,6 +21,10 @@ updates:
   # ── Python dependencies (uv workspace: pyproject.toml + uv.lock) ───────────
   - package-ecosystem: "uv"
     directory: "/"
+    # Conventional Commit subject that releases nothing (build(deps): Bump ...)
+    commit-message:
+      prefix: "build"
+      include: "scope"
     schedule:
       interval: "weekly"
     groups:
@@ -39,6 +43,10 @@ updates:
   # ── Docker (dev container: Python base image + uv) ─────────────────────────
   - package-ecosystem: "docker"
     directory: "/.devcontainer"
+    # Conventional Commit subject that releases nothing (build(deps): Bump ...)
+    commit-message:
+      prefix: "build"
+      include: "scope"
     schedule:
       interval: "weekly"
     groups:
@@ -57,6 +65,10 @@ updates:
   # ── pre-commit hooks ───────────────────────────────────────────────────────
   - package-ecosystem: "pre-commit"
     directory: "/"
+    # Conventional Commit subject that releases nothing (build(deps): Bump ...)
+    commit-message:
+      prefix: "build"
+      include: "scope"
     schedule:
       interval: "weekly"
     groups:
@@ -70,6 +82,10 @@ updates:
   # ── GitHub Actions ─────────────────────────────────────────────────────────
   - package-ecosystem: "github-actions"
     directory: "/"
+    # Conventional Commit subject that releases nothing (ci(deps): Bump ...)
+    commit-message:
+      prefix: "ci"
+      include: "scope"
     schedule:
       interval: "weekly"
     groups:

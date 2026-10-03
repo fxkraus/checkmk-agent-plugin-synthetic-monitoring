@@ -20,6 +20,7 @@ import argparse
 import io
 import json
 import pprint
+import re
 import sys
 import tarfile
 from pathlib import Path
@@ -46,6 +47,25 @@ _MANIFEST_KEYS = (
 
 def load_manifest(stage_dir: Path) -> dict:
     return json.loads((stage_dir / "manifest.json").read_text())
+
+
+_VERSION_LINE = re.compile(r'^(?P<head>\s*"version":\s*")[^"]*(?P<tail>",?)$', re.MULTILINE)
+_SEMVER = re.compile(r"^\d+\.\d+\.\d+$")
+
+
+def set_manifest_version(stage_dir: Path, version: str) -> None:
+    """Rewrite only the top-level ``"version"`` line, keeping the file's formatting.
+
+    The release job calls this (python-semantic-release's regex stamping also matches
+    ``"version.min_required"``).
+    """
+    if not _SEMVER.match(version):
+        raise ValueError(f"not a MAJOR.MINOR.PATCH version: {version!r}")
+    path = stage_dir / "manifest.json"
+    text, count = _VERSION_LINE.subn(rf"\g<head>{version}\g<tail>", path.read_text())
+    if count != 1:
+        raise ValueError(f'expected exactly one "version" line in {path}, found {count}')
+    path.write_text(text)
 
 
 def _tar_info(name: str, size: int) -> tarfile.TarInfo:
@@ -118,8 +138,15 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="print only the package version and exit",
     )
+    parser.add_argument(
+        "--set-version",
+        metavar="VERSION",
+        help="write VERSION into manifest.json before building (used by the release job)",
+    )
     args = parser.parse_args(argv)
 
+    if args.set_version:
+        set_manifest_version(args.stage_dir, args.set_version)
     if args.print_version:
         print(load_manifest(args.stage_dir)["version"])
         return 0
