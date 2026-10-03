@@ -67,9 +67,7 @@ def test_title_and_range(tmp_path, monkeypatch, capsys):
     ident = ["-c", "user.name=t", "-c", "user.email=t@t"]
     subprocess.run(["git", "init", "-q"], check=True)
     for subject in ("base", "fix: a", "oops"):
-        subprocess.run(
-            ["git", *ident, "commit", "-q", "--allow-empty", "-m", subject], check=True
-        )
+        subprocess.run(["git", *ident, "commit", "-q", "--allow-empty", "-m", subject], check=True)
 
     assert cc.main(["--title", "fix: ok", "--range", "HEAD~2..HEAD~1"]) == 0
     assert cc.main(["--title", "fix: ok", "--range", "HEAD~2..HEAD"]) == 1
