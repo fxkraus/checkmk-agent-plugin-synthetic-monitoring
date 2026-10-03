@@ -11,10 +11,15 @@ description:
  that succeeded only after retries is WARN by default (configurable). A
  stale result ({now} - {started_at} > {max_age_s} + grace) replaces the
  state with UNKNOWN by default (configurable), so availability/SLA reports
- can tell "no measurement" apart from an application outage. Per-step timings,
+ can tell "no measurement" apart from an application outage. A result without
+ a valid {started_at} counts as stale; a timestamp more than 60s in the future
+ is WARN (worker clock ahead of the server: workers need NTP). If several
+ workers report the same journey for one host, the newest result is shown
+ and the service is WARN. Per-step timings,
  the error, and artifact paths (screenshot/trace, stored on the worker) are
  shown in the service details. Perfdata: total duration, result age, and
- per-step durations.
+ the durations of the first 8 steps (a step metric is identified by its
+ position, so inserting a step shifts the history of the later ones).
 
  The service also reports Core Web Vitals (LCP, CLS, INP) plus FCP and
  TTFB as perfdata when the executor captures them. Configurable warn/crit

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 
@@ -13,6 +14,11 @@ UNKNOWN = 3
 _STATE_NAME = {OK: "OK", WARN: "WARN", CRIT: "CRIT", UNKNOWN: "UNKNOWN"}
 
 Levels = tuple[float, float] | None
+
+# Must match the step metrics declared in graphing/synmon.py.
+MAX_STEP_METRICS = 8
+# A result timestamp further in the future than this means the worker's clock is ahead.
+CLOCK_SKEW_TOLERANCE_S = 60.0
 
 
 def norm_levels(value: object) -> Levels:
@@ -72,10 +78,18 @@ class JourneyOutcome:
 
 
 def _f(value: object, default: float = 0.0) -> float:
+    """A finite float, or ``default`` (NaN/inf would disable every comparison)."""
     try:
-        return float(value)  # type: ignore[arg-type]
+        number = float(value)  # type: ignore[arg-type]
     except (TypeError, ValueError):
         return default
+    return number if math.isfinite(number) else default
+
+
+def _timestamp(value: object) -> float | None:
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return None
+    return float(value) if math.isfinite(value) else None
 
 
 def _state(value: object) -> int:
@@ -103,17 +117,37 @@ def evaluate_journey(journey: dict, params: Mapping, now: float) -> JourneyOutco
     state = max(state, level_state(duration_s, total_levels))
 
     stale_note: str | None = None
-    started_at = journey.get("started_at")
+    started_at = _timestamp(journey.get("started_at"))
     max_age = _f(journey.get("max_age_s"))
-    if started_at is not None:
-        age = now - _f(started_at)
+    grace = _f(params.get("staleness_grace_s"))
+    if started_at is None:
+        # Without a valid timestamp the result's age is unknown: never treat it as current.
+        stale_note = "Stale result (no valid started_at timestamp)"
+        details.append(stale_note)
+    else:
+        age = now - started_at
         metrics.append(MetricSpec("synmon_age", age))
-        grace = _f(params.get("staleness_grace_s"))
-        if age > max_age + grace:
+        if age < -CLOCK_SKEW_TOLERANCE_S:
+            state = max(state, WARN)
+            details.append(
+                f"Result timestamp is {int(-age)}s in the future: "
+                "the worker clock is ahead of the Checkmk server (check NTP)"
+            )
+        # abs(): a timestamp far in the future must not keep a result fresh forever.
+        if abs(age) > max_age + grace:
             stale_note = (
                 f"Stale result ({int(age)}s old, max_age {int(max_age)}s + grace {int(grace)}s)"
             )
             details.append(stale_note)
+
+    duplicates = journey.get("duplicate_workers")
+    if isinstance(duplicates, list) and duplicates:
+        state = max(state, WARN)
+        details.append(
+            "Journey reported by several workers: "
+            + ", ".join(str(w) for w in duplicates)
+            + " (showing the newest result)"
+        )
 
     step_levels = norm_levels(params.get("step_duration_levels"))
     raw_steps = journey.get("steps")
@@ -126,7 +160,8 @@ def evaluate_journey(journey: dict, params: Mapping, now: float) -> JourneyOutco
         name = raw.get("name") or f"step{i}"
         message = raw.get("message")
         steps.append(StepView(name, sstate, sdur, message))
-        metrics.append(MetricSpec(f"synmon_step_{i}_duration", sdur, step_levels))
+        if i <= MAX_STEP_METRICS:
+            metrics.append(MetricSpec(f"synmon_step_{i}_duration", sdur, step_levels))
         state = max(state, sstate)
         line = f"Step {i} {name}: {_STATE_NAME.get(sstate, sstate)} ({sdur:.2f}s)"
         if message:
@@ -167,6 +202,11 @@ def evaluate_journey(journey: dict, params: Mapping, now: float) -> JourneyOutco
     if shown:
         details.append("Web Vitals: " + " ".join(shown))
 
+    if len(steps) > MAX_STEP_METRICS:
+        details.append(
+            f"Step duration metrics are recorded for the first {MAX_STEP_METRICS} steps only"
+        )
+
     attempts = int(_f(journey.get("attempts", 1), 1.0))
     metrics.append(MetricSpec("synmon_attempts", float(attempts)))
     if attempts > 1:
@@ -187,6 +227,12 @@ def evaluate_journey(journey: dict, params: Mapping, now: float) -> JourneyOutco
     return JourneyOutcome(
         state=state, summary=summary, details=details, metrics=metrics, steps=steps
     )
+
+
+# Applied without any "worker scheduler" rule, so a stalled executor always alerts.
+WORKER_DEFAULT_PARAMETERS: dict[str, object] = {
+    "heartbeat_age_levels": ("fixed", (600.0, 1800.0)),
+}
 
 
 @dataclass

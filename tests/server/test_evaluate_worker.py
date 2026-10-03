@@ -72,3 +72,9 @@ def test_run_error_is_crit_and_explained():
 def test_non_list_load_errors_are_ignored():
     out = evaluate.evaluate_worker(_worker(load_errors="oops"), {}, now=1100.0)
     assert out.state == OK
+
+
+def test_default_parameters_alert_on_a_stalled_scheduler():
+    params = evaluate.WORKER_DEFAULT_PARAMETERS
+    assert evaluate.evaluate_worker(_worker(), params, now=1000.0 + 700).state == WARN
+    assert evaluate.evaluate_worker(_worker(), params, now=1000.0 + 1900).state == CRIT

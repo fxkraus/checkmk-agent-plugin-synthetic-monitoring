@@ -196,3 +196,52 @@ def test_malformed_nested_values_do_not_crash():
 def test_non_list_steps_are_ignored():
     out = evaluate.evaluate_journey(_journey(steps={"a": 1}), {}, now=1000.0)
     assert out.steps == []
+
+
+def test_missing_or_invalid_timestamp_is_stale():
+    for bad in (None, "1000", float("nan"), float("inf"), True):
+        journey = _journey(started_at=bad)
+        if bad is None:
+            del journey["started_at"]
+        out = evaluate.evaluate_journey(journey, {}, now=1000.0)
+        assert out.state == UNKNOWN, bad
+        assert out.summary.startswith("Stale result (no valid started_at"), bad
+
+
+def test_small_future_timestamp_warns_about_clock_skew():
+    # worker clock 120s ahead: still within max_age, but visible
+    out = evaluate.evaluate_journey(_journey(started_at=1120.0), {}, now=1000.0)
+    assert out.state == WARN
+    assert any("worker clock is ahead" in d for d in out.details)
+
+
+def test_tiny_future_timestamp_is_tolerated():
+    out = evaluate.evaluate_journey(_journey(started_at=1030.0), {}, now=1000.0)
+    assert out.state == OK
+
+
+def test_far_future_timestamp_does_not_stay_fresh():
+    out = evaluate.evaluate_journey(_journey(started_at=10_000.0), {}, now=1000.0)
+    assert out.state == UNKNOWN
+    assert out.summary.startswith("Stale result")
+
+
+def test_non_finite_numbers_do_not_reach_metrics():
+    out = evaluate.evaluate_journey(_journey(duration_ms=float("nan")), {}, now=1000.0)
+    duration = next(m for m in out.metrics if m.name == "synmon_duration")
+    assert duration.value == 0.0
+
+
+def test_step_metrics_are_capped_at_the_declared_count():
+    steps = [{"name": f"s{i}", "status": 0, "duration_ms": 10} for i in range(12)]
+    out = evaluate.evaluate_journey(_journey(steps=steps), {}, now=1000.0)
+    step_metrics = [m.name for m in out.metrics if m.name.startswith("synmon_step_")]
+    assert len(step_metrics) == evaluate.MAX_STEP_METRICS
+    assert len(out.steps) == 12
+    assert any("first 8 steps only" in d for d in out.details)
+
+
+def test_duplicate_workers_warn():
+    out = evaluate.evaluate_journey(_journey(duplicate_workers=["w1", "w2"]), {}, now=1000.0)
+    assert out.state == WARN
+    assert any("several workers: w1, w2" in d for d in out.details)

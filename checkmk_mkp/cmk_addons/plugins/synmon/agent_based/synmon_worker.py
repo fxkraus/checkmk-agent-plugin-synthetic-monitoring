@@ -50,5 +50,5 @@ check_plugin_synmon_worker = CheckPlugin(
     discovery_function=discover_synmon_worker,
     check_function=check_synmon_worker,
     check_ruleset_name="synmon_worker",
-    check_default_parameters={},
+    check_default_parameters=evaluate.WORKER_DEFAULT_PARAMETERS,
 )

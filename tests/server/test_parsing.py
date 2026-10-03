@@ -36,3 +36,15 @@ def test_parse_worker_section_returns_first_dict_or_none():
     )
     assert parsing.parse_worker_section([]) is None
     assert parsing.parse_worker_section([["{bad"]]) is None
+
+
+def test_index_journeys_keeps_newest_duplicate_and_names_workers():
+    journeys = [
+        {"journey_name": "login", "worker_id": "w2", "started_at": 200.0, "status": 2},
+        {"journey_name": "login", "worker_id": "w1", "started_at": 100.0, "status": 0},
+        {"journey_name": "search", "worker_id": "w1", "started_at": 100.0, "status": 0},
+    ]
+    out = parsing.index_journeys(journeys)
+    assert out["login"]["worker_id"] == "w2"
+    assert out["login"]["duplicate_workers"] == ["w1", "w2"]
+    assert "duplicate_workers" not in out["search"]
