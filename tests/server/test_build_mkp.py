@@ -21,10 +21,15 @@ def _load_builder():
     return module
 
 
+def _manifest_version() -> str:
+    return json.loads((_STAGE_DIR / "manifest.json").read_text())["version"]
+
+
 def test_mkp_filename_and_outer_members():
     builder = _load_builder()
     filename, data = builder.build_mkp_bytes(_STAGE_DIR)
-    assert filename == "synmon-1.2.0.mkp"
+    # The release job bumps the manifest version, so never hard-code it here.
+    assert filename == f"synmon-{_manifest_version()}.mkp"
     with tarfile.open(fileobj=io.BytesIO(data), mode="r:gz") as tar:
         names = set(tar.getnames())
     assert {"info", "info.json", "cmk_addons_plugins.tar", "agents.tar", "lib.tar"} <= names
@@ -39,7 +44,7 @@ def test_info_roundtrips_like_checkmk_reads_it():
     # Checkmk parses `info` with ast.literal_eval; it must be a valid Python literal.
     info = ast.literal_eval(raw_info)
     assert info["name"] == "synmon"
-    assert info["version"] == "1.2.0"
+    assert info["version"] == _manifest_version()
     assert info["version.min_required"] == "2.4.0p32"
     assert len(info["files"]["cmk_addons_plugins"]) == 10
     assert info["files"]["agents"] == ["plugins/synmon_collector.py"]
