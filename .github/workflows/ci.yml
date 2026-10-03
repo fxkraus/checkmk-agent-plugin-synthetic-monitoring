@@ -136,6 +136,19 @@ jobs:
       - name: Run live tests against the mock site
         run: make integration
 
+  # Runs deploy/install.sh for real in a RHEL 9 rebuild (AlmaLinux 9): users, permissions,
+  # allowlist, rendered units (checked by Podman's Quadlet generator), idempotent re-run.
+  deploy:
+    name: deploy (install.sh on AlmaLinux 9)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Run install.sh and check the result
+        run: make test-deploy
+
   # Builds each executor image variant the air-gapped way (offline install from the hashed
   # wheelhouse) and runs it hardened, as deploy/synmon-executor.container does, against the
   # mock site: ubi9 (default, Red Hat UBI 9) and playwright (the Playwright-supported image).
@@ -188,7 +201,7 @@ jobs:
   # re-run this job.
   release:
     name: release
-    needs: [lint, secrets, checks, pytest, integration, image]
+    needs: [lint, secrets, checks, pytest, integration, image, deploy]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     concurrency:
@@ -242,7 +255,7 @@ jobs:
   # this keeps the gate in the repository instead of in repository settings.
   dependabot-merge:
     name: Auto-merge Dependabot (uv / pre-commit, minor + patch)
-    needs: [lint, secrets, checks, pytest, integration, image]
+    needs: [lint, secrets, checks, pytest, integration, image, deploy]
     runs-on: ubuntu-latest
     if: github.event_name == 'pull_request' && github.event.pull_request.user.login == 'dependabot[bot]'
     permissions:

@@ -110,8 +110,11 @@ sudo ./install.sh \
 ```
 
 All flags have `SYNMON_*` env equivalents. The script is idempotent — re-run it to update the
-image digest, schedule or allowed hosts. It refuses the placeholder image, warns if the image is
-not pinned by digest or not loaded yet, and (re)sets the journeys dir to `root:synmon 0750`.
+image digest, schedule, allowed hosts, sandbox or network (options left out of a re-run fall back
+to their defaults in the unit; the env file and an existing allowlist are kept). It refuses the
+placeholder image, warns if the image is not pinned by digest or not loaded yet (or the network
+does not exist), and (re)sets the journeys dir to `root:synmon 0750`. `make test-deploy` (CI job
+*deploy*) runs it for real in AlmaLinux 9 and checks the result with Podman's Quadlet generator.
 
 `--allowed-hosts` writes `/etc/synmon/allowed_hosts` (root-owned, one host per line, `#`
 comments): the agent plugin forwards only results for these target hosts and counts the rest on
@@ -161,7 +164,9 @@ group so it can read the spool.
 > The executor runs unprivileged with a read-only rootfs and all Linux capabilities dropped; only
 > `/tmp` (tmpfs) and `/var/lib/synmon` are writable. It is capped at 2 GiB of memory (no extra
 > swap) and 1024 processes (`PodmanArgs=` in the unit). Egress to journey targets uses the
-> default Podman network; no ports are published.
+> default Podman network unless `install.sh --network NAME` attaches it to a network you created
+> (`podman network create NAME`) — e.g. one whose bridge a host firewall policy limits to the
+> journey targets' addresses and ports; no ports are published.
 >
 > By default Playwright starts Chromium **without its sandbox**, so this container is the only
 > isolation from the monitored pages (see *Chromium sandbox* below to add Chromium's own). Either

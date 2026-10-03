@@ -161,6 +161,8 @@ Two layers provision a worker:
     images (`-latest` tags, so new patch releases are picked up automatically);
   - `live browser integration` — `make integration`: the live tests inside the digest-pinned
     Playwright image, Python packages only from the `uv.lock` hashes;
+  - `deploy (install.sh on AlmaLinux 9)` — `make test-deploy`: runs `deploy/install.sh` in a RHEL 9
+    rebuild and checks users, permissions, allowlist and the rendered Quadlet unit;
   - `executor image (ubi9)` / `executor image (playwright)` — builds each image variant from the
     wheelhouse and runs it hardened against the mock site (`make wheelhouse image image-test`).
 

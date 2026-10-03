@@ -8,6 +8,7 @@
 # Usage: sudo ./install.sh [--image REF] [--worker-id ID] [--schedule '*:0/5']
 #                          [--journeys DIR] [--agent-user USER]
 #                          [--allowed-hosts host1,host2,...] [--chromium-sandbox]
+#                          [--network NAME]
 set -euo pipefail
 
 SYNMON_USER="${SYNMON_USER:-synmon}"
@@ -23,11 +24,13 @@ ALLOWED_HOSTS="${SYNMON_ALLOWED_HOSTS:-}"
 ALLOWED_HOSTS_FILE=/etc/synmon/allowed_hosts
 # 1 = run Chromium with its own sandbox (see deploy/README.md, "Chromium sandbox").
 CHROMIUM_SANDBOX="${SYNMON_CHROMIUM_SANDBOX:-0}"
+# Pre-created Podman network to attach the executor to (default: Podman's default network).
+NETWORK="${SYNMON_NETWORK:-}"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 usage() {
-  sed -n '2,10p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+  sed -n '2,11p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
 }
 
 while [[ "$#" -gt 0 ]]; do
@@ -39,6 +42,7 @@ while [[ "$#" -gt 0 ]]; do
     --agent-user) AGENT_USER="$2"; shift 2 ;;
     --allowed-hosts) ALLOWED_HOSTS="$2"; shift 2 ;;
     --chromium-sandbox) CHROMIUM_SANDBOX=1; shift ;;
+    --network) NETWORK="$2"; shift 2 ;;
     -h|--help) usage; exit 0 ;;
     *) echo "unknown argument: $1" >&2; usage; exit 2 ;;
   esac
@@ -70,6 +74,9 @@ if [[ -n "$ALLOWED_HOSTS" ]]; then
     '^[A-Za-z0-9][A-Za-z0-9._-]{0,252}(,[A-Za-z0-9][A-Za-z0-9._-]{0,252})*$'
 fi
 require --chromium-sandbox "$CHROMIUM_SANDBOX" '^[01]$'
+if [[ -n "$NETWORK" ]]; then
+  require --network "$NETWORK" '^[A-Za-z0-9][A-Za-z0-9_.-]*$'
+fi
 if [[ "$IMAGE" == *REPLACE_WITH_DIGEST* ]]; then
   echo "--image: set the executor image (the default is a placeholder)" >&2
   exit 2
@@ -132,13 +139,18 @@ if [[ "$CHROMIUM_SANDBOX" == 1 ]]; then
 else
   sandbox=(-e "/^@CHROMIUM_SANDBOX_CAP@$/d" -e "/^@CHROMIUM_SANDBOX_ENV@$/d")
 fi
+if [[ -n "$NETWORK" ]]; then
+  network=(-e "s|^@NETWORK@$|Network=${NETWORK}|")
+else
+  network=(-e "/^@NETWORK@$/d")
+fi
 render() {
   sed -e "s|@IMAGE@|${IMAGE}|g" \
       -e "s|@SYNMON_UID@|${uid}|g" \
       -e "s|@SYNMON_GID@|${gid}|g" \
       -e "s|@JOURNEYS_DIR@|${JOURNEYS_DIR}|g" \
       -e "s|@SCHEDULE@|${SCHEDULE}|g" \
-      "${sandbox[@]}" \
+      "${sandbox[@]}" "${network[@]}" \
       "$1"
 }
 install -d -m 0755 /etc/containers/systemd
@@ -151,6 +163,9 @@ chmod 0644 /etc/containers/systemd/synmon-executor.container \
 systemctl daemon-reload
 systemctl enable --now synmon-executor.timer
 
+if [[ -n "$NETWORK" ]] && ! podman network exists "$NETWORK"; then
+  echo "warning: podman network '$NETWORK' does not exist; create it before the next run" >&2
+fi
 if ! podman image exists "$IMAGE"; then
   echo "warning: image not loaded yet; every run fails until you load it: $IMAGE" >&2
 fi
