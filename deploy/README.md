@@ -161,12 +161,34 @@ group so it can read the spool.
 > swap) and 1024 processes (`PodmanArgs=` in the unit). Egress to journey targets uses the
 > default Podman network; no ports are published.
 >
-> Playwright starts Chromium **without its sandbox**, so this container is the only isolation
-> from the monitored pages. Treat `/var/lib/synmon` as untrusted input: the agent plugin (root)
+> By default Playwright starts Chromium **without its sandbox**, so this container is the only
+> isolation from the monitored pages (see *Chromium sandbox* below to add Chromium's own). Either
+> way, treat `/var/lib/synmon` as untrusted input: the agent plugin (root)
 > does not follow a symlinked spool directory, only reads regular files (no symlinks/FIFOs, max
 > 1 MiB each, at most 500 files / 16 MiB per call), drops results whose `target_host` is not a
 > plain host name or not in `/etc/synmon/allowed_hosts`, and reports all of it on the worker
 > service.
+
+## Chromium sandbox
+
+`install.sh --chromium-sandbox` adds Chromium's own sandbox as a second layer inside the
+container: a compromised renderer is then also confined by Chromium's user-namespace sandbox,
+not only by the container. It renders two extra lines into the unit:
+
+- `Environment=SYNMON_CHROMIUM_SANDBOX=1` — Playwright launches Chromium with
+  `chromium_sandbox=True`.
+- `AddCapability=SYS_CHROOT` — the sandbox `chroot()`s into an empty directory, which Podman's
+  seccomp profile only permits when `CAP_SYS_CHROOT` is in the container's bounding set. The
+  executor itself still runs with no effective, permitted or ambient capabilities
+  (unprivileged user, `NoNewPrivileges`); only the sandbox's fresh user namespace uses it.
+
+It needs unprivileged user namespaces (on by default on RHEL 9: `user.max_user_namespaces`) and
+a seccomp profile that allows `unshare`: Podman's RHEL 9 default does, Docker's default does not.
+CI runs the hardened image with the sandbox under the RHEL 9 Podman seccomp profile (taken from
+the `containers-common` package of AlmaLinux 9). **Not yet verified on a RHEL 9.2 host with
+SELinux enforcing** — enable it on one worker first: if the sandbox cannot start, every run fails
+and the *Synthetic Worker Scheduler* service turns CRIT with "Chromium sandboxing failed"; re-run
+`install.sh` without the flag to go back.
 
 ## Failure artifacts and retention
 

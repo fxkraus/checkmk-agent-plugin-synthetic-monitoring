@@ -100,7 +100,13 @@ def _session_factory(
 
 
 @asynccontextmanager
-async def browser_session(artifacts_dir: Path, *, headless: bool = True, trace: bool = False):
+async def browser_session(
+    artifacts_dir: Path,
+    *,
+    headless: bool = True,
+    trace: bool = False,
+    chromium_sandbox: bool = False,
+):
     """Browser-once session provider: yields a make_session factory.
 
     The factory is an async CM accepting an optional storage_state dict. Each call opens a new
@@ -108,13 +114,16 @@ async def browser_session(artifacts_dir: Path, *, headless: bool = True, trace: 
 
     ``trace`` records a Playwright trace and saves it on failure. Traces contain typed values
     (passwords) and request headers/bodies (session cookies), so it is off by default.
+
+    ``chromium_sandbox`` turns on Chromium's own sandbox (Playwright disables it by default).
+    Without it the container is the only isolation from the monitored pages.
     """
     from playwright.async_api import async_playwright
 
     async with async_playwright() as pw:
 
         async def launch() -> Any:
-            return await pw.chromium.launch(headless=headless)
+            return await pw.chromium.launch(headless=headless, chromium_sandbox=chromium_sandbox)
 
         make_session, latest = _session_factory(launch, await launch(), artifacts_dir, trace=trace)
         try:

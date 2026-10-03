@@ -28,6 +28,12 @@ def test_values_and_empty_variables():
     )
     assert config.retries == 0 and config.timeout_s == 30.5
     assert config.run_budget_s is None and config.trace is True
+    assert config.chromium_sandbox is False
+
+
+def test_chromium_sandbox_flag():
+    assert ExecutorConfig.from_env({"SYNMON_CHROMIUM_SANDBOX": "1"}).chromium_sandbox is True
+    assert ExecutorConfig.from_env({"SYNMON_CHROMIUM_SANDBOX": "0"}).chromium_sandbox is False
 
 
 @pytest.mark.parametrize(

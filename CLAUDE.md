@@ -103,7 +103,8 @@ failed → worker service CRIT); the agent plugin combines it with a spool scan 
   Playwright traces record typed passwords and cookies, so they are opt-in (`SYNMON_TRACE=1`);
   failure screenshots are `<target_host>__<journey_id>.png`, mode `0640`, pruned after
   `SYNMON_ARTIFACT_MAX_AGE_S` (7 days).
-- **Spool is untrusted input** for the root agent plugin (Chromium runs without its sandbox and the
+- **Spool is untrusted input** for the root agent plugin (Chromium runs without its sandbox unless
+  `install.sh --chromium-sandbox` / `SYNMON_CHROMIUM_SANDBOX=1` + `AddCapability=SYS_CHROOT`, and the
   container can write `/var/lib/synmon`): the collector opens the spool dir with `O_NOFOLLOW` and
   reads entries via `dir_fd`, only regular files (no FIFOs, ≤ 1 MiB, ≤ 500 files / 16 MiB total),
   and drops results with an invalid `target_host` or one missing from the root-owned

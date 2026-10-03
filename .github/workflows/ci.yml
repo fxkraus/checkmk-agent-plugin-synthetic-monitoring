@@ -162,6 +162,24 @@ jobs:
       - name: Run image against the mock site
         run: make image-test
 
+      # RHEL 9's Podman seccomp profile (from the containers-common package of the RHEL rebuild
+      # AlmaLinux 9): it allows the user-namespace sandbox that Docker's default profile blocks.
+      - name: Fetch the RHEL 9 Podman seccomp profile
+        run: >-
+          docker run --rm "$ALMALINUX"
+          sh -c 'microdnf install -y containers-common >/dev/null && cat /usr/share/containers/seccomp.json'
+          >"$RUNNER_TEMP/rhel9-seccomp.json"
+        env:
+          ALMALINUX: docker.io/library/almalinux:9-minimal@sha256:8e56ca192f602eb1c486b870f268730f4b08179b43845184a3623c6634f5d01a
+
+      # Ubuntu 24.04 runners restrict unprivileged user namespaces via AppArmor; RHEL has no
+      # such restriction (and no AppArmor), so lift it to mirror a RHEL worker.
+      - name: Allow unprivileged user namespaces (as on RHEL)
+        run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+
+      - name: Run image with Chromium's own sandbox (install.sh --chromium-sandbox)
+        run: make image-test SECCOMP_PROFILE="$RUNNER_TEMP/rhel9-seccomp.json"
+
   # On main, once every other job passed: release from the Conventional Commit subjects since the
   # last tag (pyproject.toml [tool.semantic_release]): feat -> minor, fix/perf -> patch, "!" ->
   # major; build/ci/chore/docs/refactor/style/test release nothing. python-semantic-release

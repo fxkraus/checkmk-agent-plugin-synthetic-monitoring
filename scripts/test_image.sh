@@ -3,10 +3,17 @@
 # (unprivileged, read-only rootfs, all capabilities dropped, tmpfs /tmp): run the integration
 # journeys against the mock site and check the spool + heartbeat it writes.
 # Usage: scripts/test_image.sh IMAGE   (CONTAINER=podman to use podman instead of docker)
+# SECCOMP_PROFILE=<file>: also enable Chromium's own sandbox (install.sh --chromium-sandbox) under
+# that seccomp profile — Docker's default blocks the sandbox, Podman's (RHEL 9) allows it.
 set -euo pipefail
 
 image="${1:?usage: $0 IMAGE}"
 engine="${CONTAINER:-docker}"
+sandbox=()
+if [[ -n "${SECCOMP_PROFILE:-}" ]]; then
+    sandbox=(--cap-add SYS_CHROOT --env SYNMON_CHROMIUM_SANDBOX=1
+        --security-opt "seccomp=${SECCOMP_PROFILE}")
+fi
 name="synmon-image-test-$$"
 state="$(mktemp -d)"
 
@@ -41,7 +48,7 @@ for _ in $(seq 1 30); do
 done
 
 "${engine}" run --rm --network "${name}" \
-    --read-only --tmpfs /tmp --cap-drop all --security-opt no-new-privileges \
+    --read-only --tmpfs /tmp --cap-drop all --security-opt no-new-privileges ${sandbox[@]+"${sandbox[@]}"} \
     --memory 2g --memory-swap 2g --pids-limit 1024 \
     --user 1000:1000 \
     --env SYNMON_WORKER_ID=image-test \
