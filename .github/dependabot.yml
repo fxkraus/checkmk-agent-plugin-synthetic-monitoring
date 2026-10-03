@@ -15,8 +15,7 @@
 #   Dockerfile* names and literal FROM tags.
 # - .devcontainer/docker-compose.yml: the Checkmk image uses the floating
 #   2.5.0-latest tag (Dependabot would propose daily builds as "patch"
-#   updates), and the Playwright image must match the executor's pinned
-#   playwright version, so it moves together with that pin.
+#   updates).
 
 version: 2
 updates:
@@ -35,8 +34,8 @@ updates:
       # Playwright bundles the monitoring browser (Chromium runs unsandboxed
       # against monitored pages), so it must not fall behind. Its own PR is
       # never auto-merged: tests/test_playwright_pins.py fails it until the
-      # Playwright image tag + digest (Containerfiles, Makefile, dev
-      # container) are bumped in the same PR.
+      # Playwright image tag + digest (Containerfiles, Makefile) are bumped
+      # in the same PR.
       playwright:
         patterns:
           - "playwright"
