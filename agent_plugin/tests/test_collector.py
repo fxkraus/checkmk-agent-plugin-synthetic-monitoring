@@ -194,7 +194,9 @@ def _run(mod, tmp_path, spool, allowed_hosts_path):
         spool_dir=spool,
         heartbeat_path=tmp_path / "nohb.json",
         out=buf,
-        allowed_hosts_path=allowed_hosts_path,
+        allowed_hosts_paths=[allowed_hosts_path]
+        if isinstance(allowed_hosts_path, Path)
+        else allowed_hosts_path,
     )
     lines = buf.getvalue().splitlines()
     headers = [line for line in lines if line.startswith("<<<<") and line != "<<<<>>>>"]
@@ -273,3 +275,29 @@ def test_total_size_limit(tmp_path, monkeypatch):
 
     assert len(headers) == 2
     assert worker["overflow"] == 1
+
+
+def test_bakery_allowlist_takes_precedence_over_install_sh(tmp_path):
+    mod = _load()
+    spool = _spool_with(tmp_path, "a.example.com", "b.example.com")
+    baked = tmp_path / "synmon_allowed_hosts"
+    baked.write_text("# Created by Check_MK Agent Bakery.\nb.example.com\n", "utf-8")
+    installed = tmp_path / "allowed_hosts"
+    installed.write_text("a.example.com\n", "utf-8")
+
+    worker, headers = _run(mod, tmp_path, spool, [baked, installed])
+    assert headers == ["<<<<b.example.com>>>>"] and worker["not_allowed"] == 1
+
+    worker, headers = _run(mod, tmp_path, spool, [tmp_path / "absent", installed])
+    assert headers == ["<<<<a.example.com>>>>"] and worker["allowlist"] is True
+
+
+def test_default_allowlist_locations_follow_the_agent_config_dir(monkeypatch):
+    monkeypatch.delenv("SYNMON_ALLOWED_HOSTS", raising=False)
+    monkeypatch.setenv("MK_CONFDIR", "/etc/agent-conf")
+    assert _load().ALLOWED_HOSTS_PATHS == [
+        Path("/etc/agent-conf/synmon_allowed_hosts"),
+        Path("/etc/synmon/allowed_hosts"),
+    ]
+    monkeypatch.setenv("SYNMON_ALLOWED_HOSTS", "/custom")
+    assert _load().ALLOWED_HOSTS_PATHS == [Path("/custom")]

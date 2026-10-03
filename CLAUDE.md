@@ -107,9 +107,10 @@ failed → worker service CRIT); the agent plugin combines it with a spool scan 
   `install.sh --chromium-sandbox` / `SYNMON_CHROMIUM_SANDBOX=1` + `AddCapability=SYS_CHROOT`, and the
   container can write `/var/lib/synmon`): the collector opens the spool dir with `O_NOFOLLOW` and
   reads entries via `dir_fd`, only regular files (no FIFOs, ≤ 1 MiB, ≤ 500 files / 16 MiB total),
-  and drops results with an invalid `target_host` or one missing from the root-owned
-  `/etc/synmon/allowed_hosts` (`install.sh --allowed-hosts`; absent file → worker WARN, unreadable
-  → fail closed). Counts go to `synmon_worker` (`unparseable`, `not_allowed`, `overflow`,
+  and drops results with an invalid `target_host` or one missing from the root-owned allowlist —
+  `$MK_CONFDIR/synmon_allowed_hosts` (Agent Bakery `PluginConfig`, wins) or
+  `/etc/synmon/allowed_hosts` (`install.sh --allowed-hosts`); absent → worker WARN, unreadable →
+  fail closed. Counts go to `synmon_worker` (`unparseable`, `not_allowed`, `overflow`,
   `allowlist`). Discovery rejects invalid hosts
   and colliding `(host, journey_id)` / `(host, name)` as load errors. Results of removed journeys are
   pruned from the spool (not in a run with load errors).

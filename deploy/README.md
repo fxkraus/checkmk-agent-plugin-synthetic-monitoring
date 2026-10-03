@@ -115,9 +115,11 @@ not pinned by digest or not loaded yet, and (re)sets the journeys dir to `root:s
 
 `--allowed-hosts` writes `/etc/synmon/allowed_hosts` (root-owned, one host per line, `#`
 comments): the agent plugin forwards only results for these target hosts and counts the rest on
-the worker service. Without the file every valid host name is forwarded and the worker service is
-WARN ("no target-host allowlist"). If the file exists but cannot be read safely (e.g. it is a
-symlink), nothing is forwarded.
+the worker service. With the Agent Bakery, set *Allowed target hosts* in the agent rule
+*Synthetic monitoring: agent deployment* instead: it deploys `/etc/check_mk/synmon_allowed_hosts`,
+which takes precedence. Without either file every valid host name is forwarded and the worker
+service is WARN ("no target-host allowlist"). If the file exists but cannot be read safely (e.g.
+it is a symlink), nothing is forwarded.
 
 `--schedule` is a systemd `OnCalendar` expression (default `*:0/5`, every 5 minutes on the
 clock). A fixed cadence — rather than "N minutes after the last run" — means each result covers

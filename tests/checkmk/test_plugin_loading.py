@@ -75,3 +75,23 @@ def test_declared_step_metrics_match_what_the_check_emits():
     from cmk_addons.plugins.synmon.lib import evaluate
 
     assert len(graphing._STEP_NAMES) == evaluate.MAX_STEP_METRICS
+
+
+def test_bakery_deploys_the_allowlist_into_the_agent_config_dir():
+    from cmk.base.cee.plugins.bakery import synmon as bakery
+    from cmk.base.plugins.bakery.bakery_api.v1 import Plugin, PluginConfig
+
+    files = list(bakery._get_synmon_files({"allowed_hosts": ["a.example.com", "b"]}))
+    assert [type(f) for f in files] == [Plugin, PluginConfig]
+    config = files[1]
+    assert list(config.lines) == ["a.example.com", "b"]
+    assert str(config.target) == "synmon_allowed_hosts" and config.include_header
+    # Without the setting no file is deployed (install.sh's /etc/synmon/allowed_hosts applies).
+    assert [type(f) for f in bakery._get_synmon_files({})] == [Plugin]
+
+
+def test_bakery_ruleset_form_builds():
+    from cmk_addons.plugins.synmon.rulesets import synmon_bakery
+
+    form = synmon_bakery.rule_spec_synmon_bakery.parameter_form()
+    assert set(form.elements) == {"interval", "allowed_hosts"}
