@@ -28,22 +28,6 @@ services:
       - "127.0.0.1:8080:5000"
       - "127.0.0.1:8000:8000"
 
-  mocksite:
-    image: python:3.12-slim-bookworm
-    working_dir: /workspace
-    volumes:
-      - "..:/workspace:cached"
-    command: python tests/integration/mocksite/mocksite.py 8080
-
-  playwright:
-    image: mcr.microsoft.com/playwright/python:v1.63.0-noble@sha256:72bd171a9ffc2b4b59532aaa6210e21014d07093120dc25528870c0b840da1f0
-    environment:
-      UV_LINK_MODE: copy
-    volumes:
-      - "..:/workspace:cached"
-    working_dir: /workspace
-    command: sleep infinity
-
 volumes:
   uv-cache:
   venv:

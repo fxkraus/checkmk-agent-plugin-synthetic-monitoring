@@ -30,6 +30,8 @@ cc = _load()
         "chore(release): v1.3.0",
         "docs(deploy/README.md): fix typo",
         "Merge branch 'main' into feature",
+        "Merge remote-tracking branch 'origin/main'",
+        "Merge pull request #12 from fxkraus/feature",
         'Revert "feat: per-step screenshots"',
     ],
 )
@@ -48,6 +50,9 @@ def test_accepts_conventional_and_generated_subjects(subject):
         "fix(): empty scope",
         "Fix: capitalised type",
         "feat: " + "x" * 100,
+        "Merge new login flow",
+        "Merge stuff",
+        "Revert",
     ],
 )
 def test_rejects_other_subjects(subject):
@@ -73,3 +78,9 @@ def test_title_and_range(tmp_path, monkeypatch, capsys):
     assert cc.main(["--title", "fix: ok", "--range", "HEAD~2..HEAD"]) == 1
     assert "'oops'" in capsys.readouterr().err
     assert cc.main(["--title", "bad title"]) == 1
+
+
+def test_generated_forms_are_not_accepted_as_pr_title():
+    # A squash merge uses the PR title as subject: it must be a Conventional Commit.
+    assert cc.main(["--title", "Merge branch 'main' into feature"]) == 1
+    assert cc.main(["--title", 'Revert "feat: x"']) == 1

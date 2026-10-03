@@ -14,7 +14,6 @@ IMAGE_FILES = [
     "executor/Containerfile",
     "executor/Containerfile.playwright",
     "Makefile",
-    ".devcontainer/docker-compose.yml",
 ]
 _IMAGE = re.compile(
     r"mcr\.microsoft\.com/playwright/python:"

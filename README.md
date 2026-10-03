@@ -149,7 +149,8 @@ Two layers provision a worker:
     the `.mkp` is kept as a build artifact for 90 days);
   - `pytest (Checkmk 2.4)` / `pytest (Checkmk 2.5)` — `tests/checkmk/` inside the real Checkmk
     images (`-latest` tags, so new patch releases are picked up automatically);
-  - `live browser integration` — Playwright against the mock site;
+  - `live browser integration` — `make integration`: the live tests inside the digest-pinned
+    Playwright image, Python packages only from the `uv.lock` hashes;
   - `executor image (ubi9)` / `executor image (playwright)` — builds each image variant from the
     wheelhouse and runs it hardened against the mock site (`make wheelhouse image image-test`).
 
@@ -160,7 +161,7 @@ Two layers provision a worker:
   Actions, Docker and all major updates wait for a manual review. Playwright gets its own PR
   that is never auto-merged: Chromium runs unsandboxed against the monitored pages, so keep it
   current, but `tests/test_playwright_pins.py` fails that PR until the Playwright image tag and
-  digest (Containerfiles, `Makefile`, dev container) are bumped with it. (The merge is gated with
+  digest (Containerfiles, `Makefile`) are bumped with it. (The merge is gated with
   `needs:` inside CI rather than GitHub auto-merge, so it does not depend on a branch ruleset
   requiring these checks.)
 - **Conventional commits** (`.github/workflows/commits.yml`) checks the PR title and every commit

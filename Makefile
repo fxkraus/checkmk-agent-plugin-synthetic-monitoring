@@ -79,7 +79,15 @@ checkmk-up:
 checkmk-down:
 	$(COMPOSE) down
 
+# Live browser tests in the digest-pinned Playwright image (the same browser the executor image
+# ships). The image has no uv: export the hashed requirements and build the project wheels first.
 integration:
-	$(COMPOSE) up -d mocksite
-	$(COMPOSE) run --rm playwright sh -c "pip install --quiet ./contract ./executor pytest && SYNMON_INTEGRATION=1 MOCKSITE_URL=http://mocksite:8080 pytest tests/integration -q"
-	$(COMPOSE) stop mocksite
+	$(RUN) sh -c "rm -rf .cache/integration \
+		&& uv export --frozen --no-dev --no-emit-workspace --package synmon-executor --quiet \
+			--output-file .cache/integration/requirements.txt \
+		&& uv export --frozen --only-group test --no-emit-project --no-emit-workspace --quiet \
+			--output-file .cache/integration/test-requirements.txt \
+		&& uv build --quiet --package synmon-contract --wheel --out-dir .cache/integration/wheels \
+		&& uv build --quiet --package synmon-executor --wheel --out-dir .cache/integration/wheels"
+	docker run --rm --platform $(IMAGE_PLATFORM) -v "$$PWD:/source:ro" \
+		--entrypoint /source/tests/integration/run-live.sh $(PLAYWRIGHT_IMAGE)

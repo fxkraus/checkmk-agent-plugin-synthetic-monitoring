@@ -18,6 +18,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Cache pre-commit environments
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
@@ -43,6 +45,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Run gitleaks
         uses: gitleaks/gitleaks-action@e0c47f4f8be36e29cdc102c57e68cb5cbf0e8d1e  # v3.0.0
@@ -60,6 +63,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Type check (mypy)
         run: make typecheck
@@ -87,7 +92,9 @@ jobs:
 
   # Loads every MKP plug-in with Checkmk's own loaders and runs the MKP lib
   # tests on the real Checkmk libraries (and Python) of each supported
-  # version. -latest tags keep the matrix free of version maintenance.
+  # version. -latest tags keep the matrix free of version maintenance and test
+  # each new patch release; deliberately not digest-pinned. The job gets no
+  # secrets and only a read token, which is not persisted in .git/config.
   pytest:
     name: pytest (Checkmk ${{ matrix.checkmk }})
     runs-on: ubuntu-latest
@@ -102,6 +109,8 @@ jobs:
             image: docker.io/checkmk/check-mk-ultimate:2.5.0-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
       - name: Set up uv
         uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7  # v10.2.0
       # The Checkmk image has no uv: hand it the test group with the uv.lock hashes.
@@ -114,31 +123,18 @@ jobs:
         env:
           IMAGE: ${{ matrix.image }}
 
+  # The live tests run inside the digest-pinned Playwright image (`make integration`): the browser
+  # comes from the image, Python packages only from the uv.lock hashes.
   integration:
     name: live browser integration
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
-      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
         with:
-          python-version: "3.12"
-      - name: Set up uv
-        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7  # v10.2.0
-      # Everything from uv.lock (hash-checked); only the browser comes from Playwright's CDN.
-      - name: Install
-        run: |
-          uv sync --locked
-          uv run --locked playwright install --with-deps chromium
-      - name: Start mock site
-        run: |
-          python tests/integration/mocksite/mocksite.py 8080 &
-          for _ in $(seq 1 20); do curl -sf http://localhost:8080/healthz && break; sleep 0.5; done
-          curl -sf http://localhost:8080/healthz || { echo "mock site did not become ready"; exit 1; }
-      - name: Run live tests
-        env:
-          SYNMON_INTEGRATION: "1"
-          MOCKSITE_URL: http://localhost:8080
-        run: uv run --locked pytest tests/integration -q
+          persist-credentials: false
+
+      - name: Run live tests against the mock site
+        run: make integration
 
   # Builds each executor image variant the air-gapped way (offline install from the hashed
   # wheelhouse) and runs it hardened, as deploy/synmon-executor.container does, against the
@@ -154,6 +150,8 @@ jobs:
       VARIANT: ${{ matrix.variant }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Build wheelhouse
         run: make wheelhouse
