@@ -49,6 +49,9 @@ def problem(subject: str, *, allow_generated: bool = True) -> str | None:
     if len(subject) > MAX_LENGTH:
         return f"longer than {MAX_LENGTH} characters"
     if not _SUBJECT.match(subject):
+        if subject.startswith('Revert "'):
+            # GitHub's revert button titles the PR like this; the squash commit needs a type.
+            return f"use 'revert: {subject.removeprefix('Revert ').strip(chr(34))}' instead"
         return f"expected '<type>[(scope)][!]: <description>' with type one of {', '.join(TYPES)}"
     return None
 

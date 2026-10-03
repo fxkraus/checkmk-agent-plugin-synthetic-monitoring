@@ -7,6 +7,9 @@ license = "MIT"
 
 [tool.uv]
 package = false
+# One uv everywhere: the dev container, CI (setup-uv reads this) and GitLab CI. It wrote uv.lock;
+# tests/test_uv_pins.py keeps the pins in sync.
+required-version = "==0.9.30"
 
 [tool.uv.workspace]
 members = ["contract", "executor"]
