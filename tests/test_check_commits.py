@@ -84,3 +84,8 @@ def test_generated_forms_are_not_accepted_as_pr_title():
     # A squash merge uses the PR title as subject: it must be a Conventional Commit.
     assert cc.main(["--title", "Merge branch 'main' into feature"]) == 1
     assert cc.main(["--title", 'Revert "feat: x"']) == 1
+
+
+def test_revert_title_gets_a_suggestion():
+    why = cc.problem('Revert "feat: per-step screenshots"', allow_generated=False)
+    assert why == "use 'revert: feat: per-step screenshots' instead"
