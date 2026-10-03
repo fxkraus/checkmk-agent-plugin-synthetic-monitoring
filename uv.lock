@@ -1299,14 +1299,12 @@ version = "1.0.0"
 source = { editable = "executor" }
 dependencies = [
     { name = "playwright" },
-    { name = "pydantic" },
     { name = "synmon-contract" },
 ]
 
 [package.metadata]
 requires-dist = [
     { name = "playwright", specifier = "==1.49.0" },
-    { name = "pydantic", specifier = ">=2,<3" },
     { name = "synmon-contract", editable = "contract" },
 ]
 
