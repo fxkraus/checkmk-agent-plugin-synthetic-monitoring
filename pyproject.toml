@@ -25,7 +25,7 @@ dev = [
     { include-group = "test" },
     { include-group = "lint" },
     # Keep in sync with the ruff-pre-commit rev in .pre-commit-config.yaml
-    "ruff==0.16.8",
+    "ruff==0.16.9",
     "mypy==2.3.1",
     "jsonschema==4.26.0",
     "synmon-contract",
