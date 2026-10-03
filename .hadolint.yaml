@@ -2,9 +2,6 @@
 # Found automatically by hadolint when run from the repo root (pre-commit, CI).
 failure-threshold: warning
 ignored:
-  # The executor base image is an ARG pinned by digest in the deployed override;
-  # a tag is fine in the source.
-  - DL3007
   # Pinning distro package versions in the devcontainer image breaks builds
   # whenever the distro publishes updates; the base image is pinned and
   # updated by Dependabot instead.

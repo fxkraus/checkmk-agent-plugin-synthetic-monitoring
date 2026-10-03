@@ -6,7 +6,7 @@
 # matching SYNMON_* environment variables.
 #
 # Usage: sudo ./install.sh [--image REF] [--worker-id ID] [--schedule '*:0/5']
-#                          [--journeys DIR] [--agent-group GROUP]
+#                          [--journeys DIR] [--agent-user USER]
 set -euo pipefail
 
 SYNMON_USER="${SYNMON_USER:-synmon}"
@@ -16,7 +16,7 @@ IMAGE="${SYNMON_IMAGE:-registry.internal.example/synmon/executor@sha256:REPLACE_
 # systemd OnCalendar expression; the default runs every 5 minutes on the clock.
 SCHEDULE="${SYNMON_SCHEDULE:-*:0/5}"
 WORKER_ID="${SYNMON_WORKER_ID:-$(hostname -s)}"
-AGENT_GROUP="${SYNMON_AGENT_GROUP:-}"
+AGENT_USER="${SYNMON_AGENT_USER:-}"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
@@ -30,7 +30,7 @@ while [[ "$#" -gt 0 ]]; do
     --worker-id) WORKER_ID="$2"; shift 2 ;;
     --schedule) SCHEDULE="$2"; shift 2 ;;
     --journeys) JOURNEYS_DIR="$2"; shift 2 ;;
-    --agent-group) AGENT_GROUP="$2"; shift 2 ;;
+    --agent-user) AGENT_USER="$2"; shift 2 ;;
     -h|--help) usage; exit 0 ;;
     *) echo "unknown argument: $1" >&2; usage; exit 2 ;;
   esac
@@ -39,6 +39,22 @@ done
 if [[ "${EUID}" -ne 0 ]]; then
   echo "must run as root" >&2
   exit 1
+fi
+
+# Values are substituted into unit files with sed: allow only characters that are safe there.
+require() {
+  local name="$1" value="$2" pattern="$3"
+  if [[ ! "$value" =~ $pattern ]]; then
+    echo "invalid ${name}: ${value}" >&2
+    exit 2
+  fi
+}
+require --image "$IMAGE" '^[A-Za-z0-9][A-Za-z0-9._/:@-]*$'
+require --worker-id "$WORKER_ID" '^[A-Za-z0-9][A-Za-z0-9._-]*$'
+require --journeys "$JOURNEYS_DIR" '^/[A-Za-z0-9._/-]+$'
+require --schedule "$SCHEDULE" '^[A-Za-z0-9*:/.,~ -]+$'
+if [[ -n "$AGENT_USER" ]]; then
+  require --agent-user "$AGENT_USER" '^[a-z_][a-z0-9_-]*[$]?$'
 fi
 
 if ! systemd-analyze calendar "$SCHEDULE" >/dev/null; then
@@ -57,9 +73,13 @@ fi
 uid="$(id -u "$SYNMON_USER")"
 gid="$(id -g "$SYNMON_USER")"
 
-# Optionally let an unprivileged agent read the spool via group membership.
-if [[ -n "$AGENT_GROUP" ]] && getent passwd "$AGENT_GROUP" >/dev/null; then
-  usermod -aG "$SYNMON_USER" "$AGENT_GROUP"
+# Optionally let an unprivileged agent user read the spool via membership in the synmon group.
+if [[ -n "$AGENT_USER" ]]; then
+  if ! getent passwd "$AGENT_USER" >/dev/null; then
+    echo "--agent-user: no such user: $AGENT_USER" >&2
+    exit 2
+  fi
+  usermod -aG "$SYNMON_USER" "$AGENT_USER"
 fi
 
 # 2. State directories: group-readable, setgid so new files inherit the synmon group.

@@ -172,3 +172,27 @@ def test_stale_state_replaces_the_outdated_result_state():
     out = evaluate.evaluate_journey(_journey(status=CRIT), {}, now=3000.0)
     assert out.state == UNKNOWN
     assert out.summary.startswith("Stale result")
+
+
+def test_out_of_range_or_malformed_status_is_unknown():
+    for bad in (7, -1, "2", None, 1.5, True):
+        out = evaluate.evaluate_journey(_journey(status=bad), {}, now=1000.0)
+        assert out.state == UNKNOWN, bad
+
+
+def test_malformed_nested_values_do_not_crash():
+    journey = _journey(
+        steps=["x", {"name": "ok", "status": 9, "duration_ms": "abc"}, None],
+        error="boom",
+        artifacts=["a"],
+        vitals="fast",
+    )
+    out = evaluate.evaluate_journey(journey, {}, now=1000.0)
+    assert out.state == UNKNOWN
+    assert [s.name for s in out.steps] == ["ok"]
+    assert out.steps[0].state == UNKNOWN
+
+
+def test_non_list_steps_are_ignored():
+    out = evaluate.evaluate_journey(_journey(steps={"a": 1}), {}, now=1000.0)
+    assert out.steps == []

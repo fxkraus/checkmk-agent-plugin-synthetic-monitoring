@@ -61,3 +61,14 @@ def test_skipped_journeys_warn():
     assert out.state == WARN
     assert "2 skipped (run budget exhausted)" in out.summary
     assert any(m.name == "synmon_journeys_skipped" and m.value == 2 for m in out.metrics)
+
+
+def test_run_error_is_crit_and_explained():
+    out = evaluate.evaluate_worker(_worker(run_error="Error: no browser"), {}, now=1100.0)
+    assert out.state == CRIT
+    assert "last run failed: Error: no browser" in out.summary
+
+
+def test_non_list_load_errors_are_ignored():
+    out = evaluate.evaluate_worker(_worker(load_errors="oops"), {}, now=1100.0)
+    assert out.state == OK

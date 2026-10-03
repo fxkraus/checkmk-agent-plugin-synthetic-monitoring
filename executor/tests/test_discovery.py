@@ -50,3 +50,44 @@ def test_journeys_registered_by_a_module_that_then_fails_are_dropped(tmp_path):
     assert loaded == []
     assert errors == ["half.py: RuntimeError: config missing"]
     assert registered_journeys() == []
+
+
+def _journey_src(name, host, journey_id=None):
+    jid = f", journey_id={journey_id!r}" if journey_id else ""
+    return (
+        "from synmon_executor import journey\n\n"
+        f"@journey(name={name!r}, target_host={host!r}, max_age_s=1, interval_s=1{jid})\n"
+        "async def run(page, ctx):\n    pass\n"
+    )
+
+
+def test_invalid_target_host_is_a_load_error(tmp_path):
+    clear_registry()
+    (tmp_path / "evil.py").write_text(_journey_src("x", "a>>>>\n<<<<b"), encoding="utf-8")
+    (tmp_path / "good.py").write_text(_journey_src("y", "ok.example.com"), encoding="utf-8")
+    loaded, errors = load_journeys(tmp_path)
+    assert loaded == ["synmon_journey_good"]
+    assert len(errors) == 1 and errors[0].startswith("evil.py: invalid target_host")
+    assert [j.name for j in registered_journeys()] == ["y"]
+
+
+def test_colliding_spool_names_are_a_load_error(tmp_path):
+    clear_registry()
+    (tmp_path / "a.py").write_text(_journey_src("one", "a_b", "x"), encoding="utf-8")
+    (tmp_path / "b.py").write_text(_journey_src("two", "a/b", "x"), encoding="utf-8")
+    _, errors = load_journeys(tmp_path)
+    assert len(errors) == 1 and errors[0].startswith("b.py:")
+    assert [j.name for j in registered_journeys()] == ["one"]
+
+
+def test_duplicate_journey_name_on_a_host_is_a_load_error(tmp_path):
+    clear_registry()
+    (tmp_path / "a.py").write_text(_journey_src("same", "h", "id1"), encoding="utf-8")
+    (tmp_path / "b.py").write_text(_journey_src("same", "h", "id2"), encoding="utf-8")
+    (tmp_path / "c.py").write_text(_journey_src("same", "other", "id1"), encoding="utf-8")
+    _, errors = load_journeys(tmp_path)
+    assert errors == ["b.py: duplicate journey name 'same' on h"]
+    assert [(j.target_host, j.journey_id) for j in registered_journeys()] == [
+        ("h", "id1"),
+        ("other", "id1"),
+    ]

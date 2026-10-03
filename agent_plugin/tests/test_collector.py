@@ -1,6 +1,7 @@
 import importlib.util
 import io
 import json
+import os
 from pathlib import Path
 
 PLUGIN = Path(__file__).resolve().parents[1] / "synmon_collector.py"
@@ -119,3 +120,61 @@ def test_passes_through_load_errors_and_skips(tmp_path):
     worker = json.loads(buf.getvalue().splitlines()[1])
     assert worker["load_errors"] == ["x.py: SyntaxError: bad"]
     assert worker["journeys_skipped"] == 1
+
+
+def test_rejects_hosts_that_could_forge_piggyback_headers(tmp_path):
+    mod = _load()
+    spool = tmp_path / "spool"
+    spool.mkdir()
+    forged = "x>>>>\n<<<<victim.example.com>>>>\n<<<local>>>"
+    (spool / "forged.json").write_text(json.dumps(_result(forged, "one")), "utf-8")
+    (spool / "list.json").write_text(json.dumps(_result(["a"], "two")), "utf-8")
+    (spool / "int.json").write_text(json.dumps(_result(5, "three")), "utf-8")
+    (spool / "empty.json").write_text(json.dumps(_result("", "four")), "utf-8")
+    (spool / "name.json").write_text(json.dumps(_result("ok.example.com", "x", journey_name=1)))
+    (spool / "good.json").write_text(json.dumps(_result("ok.example.com", "five")), "utf-8")
+
+    buf = io.StringIO()
+    mod.main(spool_dir=spool, heartbeat_path=tmp_path / "nohb.json", out=buf)
+    output = buf.getvalue()
+
+    assert "victim" not in output
+    headers = [line for line in output.splitlines() if line.startswith("<<<<")]
+    assert headers == ["<<<<ok.example.com>>>>", "<<<<>>>>"]
+    worker = json.loads(output.splitlines()[1])
+    assert worker["results_found"] == 1 and worker["unparseable"] == 5
+
+
+def test_ignores_symlinks_fifos_and_oversized_files(tmp_path):
+    mod = _load()
+    spool = tmp_path / "spool"
+    spool.mkdir()
+    target = tmp_path / "elsewhere.json"
+    target.write_text(json.dumps(_result("leak.example.com", "s")), "utf-8")
+    (spool / "link.json").symlink_to(target)
+    os.mkfifo(spool / "fifo.json")
+    big = _result("big.example.com", "b", summary="x" * (mod.MAX_FILE_BYTES + 1))
+    (spool / "big.json").write_text(json.dumps(big), "utf-8")
+    (spool / "dir.json").mkdir()
+    hb_target = tmp_path / "real_hb.json"
+    hb_target.write_text(json.dumps({"heartbeat_at": 1.0}), "utf-8")
+    hb = tmp_path / "heartbeat.json"
+    hb.symlink_to(hb_target)
+
+    buf = io.StringIO()
+    mod.main(spool_dir=spool, heartbeat_path=hb, out=buf)
+    lines = buf.getvalue().splitlines()
+
+    worker = json.loads(lines[1])
+    assert worker["results_found"] == 0 and worker["unparseable"] == 4
+    assert "heartbeat_at" not in worker
+    assert not any(line.startswith("<<<<") for line in lines)
+
+
+def test_passes_through_run_error(tmp_path):
+    mod = _load()
+    hb = tmp_path / "heartbeat.json"
+    hb.write_text(json.dumps({"heartbeat_at": 1.0, "run_error": "Error: no browser"}), "utf-8")
+    buf = io.StringIO()
+    mod.main(spool_dir=tmp_path / "nope", heartbeat_path=hb, out=buf)
+    assert json.loads(buf.getvalue().splitlines()[1])["run_error"] == "Error: no browser"

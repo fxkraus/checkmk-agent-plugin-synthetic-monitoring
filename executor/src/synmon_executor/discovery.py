@@ -3,10 +3,39 @@
 from __future__ import annotations
 
 import importlib.util
+import re
 import sys
 from pathlib import Path
 
-from synmon_executor.sdk import registered_journeys, registered_logins, truncate_registry
+from synmon_contract.models import TARGET_HOST_PATTERN
+
+from synmon_executor.sdk import (
+    JourneyDef,
+    LoginDef,
+    registered_journeys,
+    registered_logins,
+    truncate_registry,
+)
+from synmon_executor.spool import result_stem
+
+_HOST_RE = re.compile(TARGET_HOST_PATTERN)
+
+
+def _conflict(new: list[JourneyDef | LoginDef], old: list[JourneyDef | LoginDef]) -> str | None:
+    """Why the module's registrations cannot be accepted, or ``None``."""
+    stems = {result_stem(d.target_host, d.journey_id) for d in old}
+    names = {(d.target_host, d.name) for d in old}
+    for d in new:
+        if not _HOST_RE.fullmatch(d.target_host):
+            return f"invalid target_host {d.target_host!r} in '{d.name}'"
+        stem = result_stem(d.target_host, d.journey_id)
+        if stem in stems:
+            return f"'{d.name}' on {d.target_host} collides with another journey's id"
+        if (d.target_host, d.name) in names:
+            return f"duplicate journey name '{d.name}' on {d.target_host}"
+        stems.add(stem)
+        names.add((d.target_host, d.name))
+    return None
 
 
 def load_journeys(journeys_dir: Path) -> tuple[list[str], list[str]]:
@@ -33,6 +62,15 @@ def load_journeys(journeys_dir: Path) -> tuple[list[str], list[str]]:
             # Decorators that ran before the failure must not leave half-configured journeys.
             truncate_registry(*before)
             errors.append(f"{path.name}: {type(exc).__name__}: {exc}")
+            continue
+        journeys, logins = registered_journeys(), registered_logins()
+        old: list[JourneyDef | LoginDef] = [*journeys[: before[0]], *logins[: before[1]]]
+        new: list[JourneyDef | LoginDef] = [*journeys[before[0] :], *logins[before[1] :]]
+        conflict = _conflict(new, old)
+        if conflict is not None:
+            sys.modules.pop(module_name, None)
+            truncate_registry(*before)
+            errors.append(f"{path.name}: {conflict}")
             continue
         loaded.append(module_name)
     return loaded, errors

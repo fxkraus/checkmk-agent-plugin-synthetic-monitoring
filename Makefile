@@ -8,8 +8,8 @@ CHECKMK_IMAGE ?= checkmk/check-mk-ultimate:2.5.0-latest
 CONTAINER ?= docker
 VARIANT ?= ubi9
 EXECUTOR_IMAGE ?= synmon-executor:$(VARIANT)
-PLAYWRIGHT_IMAGE ?= mcr.microsoft.com/playwright/python:v1.49.0-noble
-BASE_IMAGE ?= registry.access.redhat.com/ubi9/ubi-minimal:latest
+PLAYWRIGHT_IMAGE ?= mcr.microsoft.com/playwright/python:v1.49.0-noble@sha256:35a390e70ab8ba7fbc909dc01af2329e287e89ccc8fb2f04a1a7ae94cacc5c30
+BASE_IMAGE ?= registry.access.redhat.com/ubi9/ubi-minimal:9.8-1790754119@sha256:1d7c5517a4a1a8e2688620b39ee980e82505ca1ab7ae5541b5463120ae9b3897
 IMAGE_PLATFORM ?= linux/amd64
 WHEEL_ARCH ?= x86_64
 CONTAINERFILE_ubi9 := executor/Containerfile
@@ -22,7 +22,10 @@ CONTAINERFILE = $(or $(CONTAINERFILE_$(VARIANT)),$(error VARIANT must be ubi9 or
 test:
 	$(RUN) uv run pytest -q
 
+# The Checkmk image has no uv: export the hashed test requirements for run-pytest.sh first.
 test-checkmk:
+	$(RUN) uv export --frozen --only-group test --no-emit-project --no-emit-workspace --quiet \
+		--output-file .cache/checkmk-test-requirements.txt
 	docker run --rm --platform linux/amd64 -v "$$PWD:/source:ro" \
 		--entrypoint /source/tests/checkmk/run-pytest.sh $(CHECKMK_IMAGE) -q
 

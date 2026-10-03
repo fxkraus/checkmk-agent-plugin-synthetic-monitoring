@@ -12,7 +12,9 @@ Wants=network-online.target
 # Pinned by digest from the internal mirror (air-gap). The image is pre-loaded; never pulled.
 Image=@IMAGE@
 ContainerName=synmon-executor
-PodmanArgs=--pull=never
+# Bound what a runaway (or compromised) browser can take from the worker. PodmanArgs instead of
+# the Memory=/PidsLimit= keys, which RHEL 9.2's Podman 4.4 Quadlet does not know.
+PodmanArgs=--pull=never --memory=2g --memory-swap=2g --pids-limit=1024
 
 # Run unprivileged. Host file ownership is synmon:synmon so the Checkmk agent can read the spool.
 User=@SYNMON_UID@
@@ -32,7 +34,9 @@ EnvironmentFile=/etc/synmon/executor.env
 #   printf '%s' "$APP_PASSWORD" | podman secret create synmon-app-password -
 # Secret=synmon-app-password,type=env,target=APP_PASSWORD
 
-# Hardening.
+# Hardening. Playwright starts Chromium with --no-sandbox, so this container is the only
+# isolation from the monitored pages: it can write /var/lib/synmon, which is why the agent
+# plugin validates everything it reads from there (see deploy/README.md).
 NoNewPrivileges=true
 DropCapability=all
 ReadOnly=true

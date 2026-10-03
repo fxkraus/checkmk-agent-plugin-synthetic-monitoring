@@ -68,8 +68,9 @@ def test_failed_journey_captures_artifacts_and_marks_crit():
     assert result.error is not None
     assert result.error.type == "TimeoutError"
     assert result.error.step == "submit"
-    assert result.artifacts.screenshot_path == "/a/login.png"
-    assert session.captured == ["login"]
+    # Artifacts are named per target host, so equal journey ids on two hosts cannot collide.
+    assert result.artifacts.screenshot_path == "/a/app.example.com__login.png"
+    assert session.captured == ["app.example.com__login"]
     # The failing step is recorded CRIT, the prior step OK.
     assert [s.status for s in result.steps] == [0, 2]
 
