@@ -1,7 +1,7 @@
 # Podman Quadlet unit for the synthetic-monitoring executor.
 # This is a TEMPLATE: deploy/install.sh substitutes @IMAGE@ / @SYNMON_UID@ / @SYNMON_GID@ /
-# @JOURNEYS_DIR@, renders or drops the @CHROMIUM_SANDBOX_*@ lines, and writes the result to
-# /etc/containers/systemd/synmon-executor.container.
+# @JOURNEYS_DIR@, renders or drops the @CHROMIUM_SANDBOX_*@ / @NETWORK@ lines, and writes the
+# result to /etc/containers/systemd/synmon-executor.container.
 # The .timer triggers it; it deliberately has no [Install] so it does not start at boot.
 [Unit]
 Description=Synthetic Monitoring executor (Playwright user journeys)
@@ -16,6 +16,9 @@ ContainerName=synmon-executor
 # Bound what a runaway (or compromised) browser can take from the worker. PodmanArgs instead of
 # the Memory=/PidsLimit= keys, which RHEL 9.2's Podman 4.4 Quadlet does not know.
 PodmanArgs=--pull=never --memory=2g --memory-swap=2g --pids-limit=1024
+# install.sh --network NAME: a pre-created Podman network (e.g. one whose egress the host
+# firewall limits to the journey targets); dropped otherwise (Podman's default network).
+@NETWORK@
 
 # Run unprivileged. Host file ownership is synmon:synmon so the Checkmk agent can read the spool.
 User=@SYNMON_UID@

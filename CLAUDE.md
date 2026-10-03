@@ -146,6 +146,8 @@ for bakery API **v2** in 2.5+; v1 is removed in 2.7, see Werk #18600). Do **not*
 - `make hooks` — install the `commit-msg` hook (host `python3`, stdlib only — nothing installed).
 - `make wheelhouse` / `make image` / `make image-test` (`VARIANT=ubi9|playwright`) — executor image: collect wheels (network),
   build offline, run hardened against the mock site (`scripts/test_image.sh`). Guide: `deploy/README.md`.
+- `make test-deploy` — runs `deploy/install.sh` in AlmaLinux 9 (`tests/deploy/run-install-test.sh`;
+  only `systemctl` stubbed, units checked by Podman's Quadlet generator).
 - `make checkmk-up` / `make checkmk-down` — the Checkmk 2.5 Ultimate service (unstable under amd64
   emulation on macOS; fine for read-only API inspection, exits ~60–90s).
 - Tests are **network-free**; the real browser is only used behind `SYNMON_INTEGRATION`

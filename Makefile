@@ -16,7 +16,7 @@ CONTAINERFILE_ubi9 := executor/Containerfile
 CONTAINERFILE_playwright := executor/Containerfile.playwright
 CONTAINERFILE = $(or $(CONTAINERFILE_$(VARIANT)),$(error VARIANT must be ubi9 or playwright))
 
-.PHONY: test test-checkmk lint typecheck secrets format schema mkp checkmk-up checkmk-down integration \
+.PHONY: test test-checkmk test-deploy lint typecheck secrets format schema mkp checkmk-up checkmk-down integration \
 	wheelhouse image image-test hooks
 
 test:
@@ -40,6 +40,12 @@ wheelhouse:
 image:
 	$(CONTAINER) build --platform $(IMAGE_PLATFORM) --build-arg PLAYWRIGHT_IMAGE=$(PLAYWRIGHT_IMAGE) \
 		--build-arg BASE_IMAGE=$(BASE_IMAGE) -f $(CONTAINERFILE) -t $(EXECUTOR_IMAGE) .
+
+# deploy/install.sh for real in a RHEL 9 rebuild (only systemctl stubbed; Quadlet dry run).
+RHEL_TEST_IMAGE ?= docker.io/library/almalinux:9@sha256:9819dc675b67b595c2b59e42be7763fca1a8bb217fa5944e04daa22e9a64db16
+test-deploy:
+	docker run --rm -v "$$PWD:/source:ro" --entrypoint /source/tests/deploy/run-install-test.sh \
+		$(RHEL_TEST_IMAGE)
 
 # SECCOMP_PROFILE=<file> also runs Chromium with its own sandbox (see scripts/test_image.sh).
 image-test:
