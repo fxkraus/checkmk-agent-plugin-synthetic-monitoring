@@ -7,7 +7,7 @@
 #
 # Usage: sudo ./install.sh [--image REF] [--worker-id ID] [--schedule '*:0/5']
 #                          [--journeys DIR] [--agent-user USER]
-#                          [--allowed-hosts host1,host2,...]
+#                          [--allowed-hosts host1,host2,...] [--chromium-sandbox]
 set -euo pipefail
 
 SYNMON_USER="${SYNMON_USER:-synmon}"
@@ -21,6 +21,8 @@ AGENT_USER="${SYNMON_AGENT_USER:-}"
 # Target hosts the agent plugin may send piggyback data to (/etc/synmon/allowed_hosts).
 ALLOWED_HOSTS="${SYNMON_ALLOWED_HOSTS:-}"
 ALLOWED_HOSTS_FILE=/etc/synmon/allowed_hosts
+# 1 = run Chromium with its own sandbox (see deploy/README.md, "Chromium sandbox").
+CHROMIUM_SANDBOX="${SYNMON_CHROMIUM_SANDBOX:-0}"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
@@ -36,6 +38,7 @@ while [[ "$#" -gt 0 ]]; do
     --journeys) JOURNEYS_DIR="$2"; shift 2 ;;
     --agent-user) AGENT_USER="$2"; shift 2 ;;
     --allowed-hosts) ALLOWED_HOSTS="$2"; shift 2 ;;
+    --chromium-sandbox) CHROMIUM_SANDBOX=1; shift ;;
     -h|--help) usage; exit 0 ;;
     *) echo "unknown argument: $1" >&2; usage; exit 2 ;;
   esac
@@ -66,6 +69,7 @@ if [[ -n "$ALLOWED_HOSTS" ]]; then
   require --allowed-hosts "$ALLOWED_HOSTS" \
     '^[A-Za-z0-9][A-Za-z0-9._-]{0,252}(,[A-Za-z0-9][A-Za-z0-9._-]{0,252})*$'
 fi
+require --chromium-sandbox "$CHROMIUM_SANDBOX" '^[01]$'
 if [[ "$IMAGE" == *REPLACE_WITH_DIGEST* ]]; then
   echo "--image: set the executor image (the default is a placeholder)" >&2
   exit 2
@@ -122,12 +126,19 @@ if [[ ! -f /etc/synmon/executor.env ]]; then
 fi
 
 # 4. Render + install the Quadlet container unit and the timer.
+if [[ "$CHROMIUM_SANDBOX" == 1 ]]; then
+  sandbox=(-e "s|^@CHROMIUM_SANDBOX_CAP@$|AddCapability=SYS_CHROOT|"
+    -e "s|^@CHROMIUM_SANDBOX_ENV@$|Environment=SYNMON_CHROMIUM_SANDBOX=1|")
+else
+  sandbox=(-e "/^@CHROMIUM_SANDBOX_CAP@$/d" -e "/^@CHROMIUM_SANDBOX_ENV@$/d")
+fi
 render() {
   sed -e "s|@IMAGE@|${IMAGE}|g" \
       -e "s|@SYNMON_UID@|${uid}|g" \
       -e "s|@SYNMON_GID@|${gid}|g" \
       -e "s|@JOURNEYS_DIR@|${JOURNEYS_DIR}|g" \
       -e "s|@SCHEDULE@|${SCHEDULE}|g" \
+      "${sandbox[@]}" \
       "$1"
 }
 install -d -m 0755 /etc/containers/systemd

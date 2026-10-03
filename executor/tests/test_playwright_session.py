@@ -188,3 +188,34 @@ def test_disconnected_browser_is_relaunched(tmp_path):
     make_session, latest = _session_factory(launch, crashed, tmp_path, trace=False)
     _use(make_session)
     assert latest() is fresh and len(fresh.contexts) == 1 and crashed.contexts == []
+
+
+def test_browser_session_passes_the_sandbox_flag_to_chromium(tmp_path, monkeypatch):
+    import playwright.async_api
+    from synmon_executor.playwright_session import browser_session
+
+    launches = []
+
+    class _Chromium:
+        async def launch(self, **kwargs):
+            launches.append(kwargs)
+            return _Browser(_Tracing())
+
+    class _Playwright:
+        chromium = _Chromium()
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *exc):
+            return False
+
+    monkeypatch.setattr(playwright.async_api, "async_playwright", _Playwright)
+
+    async def go(**kwargs):
+        async with browser_session(tmp_path, **kwargs):
+            pass
+
+    asyncio.run(go())
+    asyncio.run(go(chromium_sandbox=True))
+    assert [k["chromium_sandbox"] for k in launches] == [False, True]

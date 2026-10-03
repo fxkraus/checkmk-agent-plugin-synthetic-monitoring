@@ -221,7 +221,9 @@ def main() -> None:
             artifacts_dir=config.artifacts_dir,
             heartbeat_path=config.heartbeat_path,
             worker_id=config.worker_id,
-            browser_session=functools.partial(browser_session, trace=config.trace),
+            browser_session=functools.partial(
+                browser_session, trace=config.trace, chromium_sandbox=config.chromium_sandbox
+            ),
             default_retries=config.retries,
             default_timeout_s=config.timeout_s,
             default_backoff_s=config.retry_backoff_s,

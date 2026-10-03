@@ -1,6 +1,7 @@
 # Podman Quadlet unit for the synthetic-monitoring executor.
 # This is a TEMPLATE: deploy/install.sh substitutes @IMAGE@ / @SYNMON_UID@ / @SYNMON_GID@ /
-# @JOURNEYS_DIR@ and writes the result to /etc/containers/systemd/synmon-executor.container.
+# @JOURNEYS_DIR@, renders or drops the @CHROMIUM_SANDBOX_*@ lines, and writes the result to
+# /etc/containers/systemd/synmon-executor.container.
 # The .timer triggers it; it deliberately has no [Install] so it does not start at boot.
 [Unit]
 Description=Synthetic Monitoring executor (Playwright user journeys)
@@ -34,11 +35,16 @@ EnvironmentFile=/etc/synmon/executor.env
 #   printf '%s' "$APP_PASSWORD" | podman secret create synmon-app-password -
 # Secret=synmon-app-password,type=env,target=APP_PASSWORD
 
-# Hardening. Playwright starts Chromium with --no-sandbox, so this container is the only
-# isolation from the monitored pages: it can write /var/lib/synmon, which is why the agent
-# plugin validates everything it reads from there (see deploy/README.md).
+# Hardening. Without --chromium-sandbox Playwright starts Chromium with --no-sandbox, so this
+# container is the only isolation from the monitored pages: it can write /var/lib/synmon, which
+# is why the agent plugin validates everything it reads from there (see deploy/README.md).
 NoNewPrivileges=true
 DropCapability=all
+# --chromium-sandbox: Chromium's user-namespace sandbox calls chroot(), which Podman's seccomp
+# profile only allows with CAP_SYS_CHROOT in the bounding set. The unprivileged executor never
+# holds it (no effective/ambient caps, NoNewPrivileges); only the sandbox's new namespace does.
+@CHROMIUM_SANDBOX_CAP@
+@CHROMIUM_SANDBOX_ENV@
 ReadOnly=true
 Tmpfs=/tmp:rw,nosuid,nodev,size=256m
 

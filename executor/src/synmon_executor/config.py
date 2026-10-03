@@ -26,6 +26,9 @@ class ExecutorConfig(BaseModel):
     )
     # Traces record typed passwords and session cookies: opt-in for debugging only.
     trace: bool = Field(default=False, alias="SYNMON_TRACE")
+    # Chromium's own (user-namespace) sandbox; needs CAP_SYS_CHROOT in the container's bounding
+    # set (install.sh --chromium-sandbox) and a seccomp profile that allows unshare.
+    chromium_sandbox: bool = Field(default=False, alias="SYNMON_CHROMIUM_SANDBOX")
     retries: int = Field(default=1, ge=0, alias="SYNMON_RETRIES")
     timeout_s: float = Field(default=120.0, gt=0, allow_inf_nan=False, alias="SYNMON_TIMEOUT_S")
     retry_backoff_s: float = Field(
@@ -42,8 +45,9 @@ class ExecutorConfig(BaseModel):
     def from_env(cls, env: Mapping[str, str]) -> ExecutorConfig:
         """Unset or empty variables take the default. Raises ``ValidationError``."""
         values: dict[str, object] = {k: v for k, v in env.items() if k.startswith("SYNMON_") and v}
-        if "SYNMON_TRACE" in values:
-            values["SYNMON_TRACE"] = values["SYNMON_TRACE"] == "1"
+        for flag in ("SYNMON_TRACE", "SYNMON_CHROMIUM_SANDBOX"):
+            if flag in values:
+                values[flag] = values[flag] == "1"
         return cls.model_validate(values)
 
 

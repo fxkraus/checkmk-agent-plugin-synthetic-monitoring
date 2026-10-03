@@ -41,8 +41,9 @@ image:
 	$(CONTAINER) build --platform $(IMAGE_PLATFORM) --build-arg PLAYWRIGHT_IMAGE=$(PLAYWRIGHT_IMAGE) \
 		--build-arg BASE_IMAGE=$(BASE_IMAGE) -f $(CONTAINERFILE) -t $(EXECUTOR_IMAGE) .
 
+# SECCOMP_PROFILE=<file> also runs Chromium with its own sandbox (see scripts/test_image.sh).
 image-test:
-	CONTAINER=$(CONTAINER) scripts/test_image.sh $(EXECUTOR_IMAGE)
+	CONTAINER=$(CONTAINER) SECCOMP_PROFILE=$(SECCOMP_PROFILE) scripts/test_image.sh $(EXECUTOR_IMAGE)
 
 # pre-commit runs the same hooks as the CI lint job (ruff, shellcheck, hadolint, actionlint,
 # gitleaks, hygiene); mypy needs the workspace deps, so it runs separately.
