@@ -286,7 +286,8 @@ async def _resilient(
         if deadline is not None and mono() + backoff >= deadline:
             break
         await sleep(backoff)
-    assert result is not None
+    if result is None:
+        raise RuntimeError(f"no attempt ran for '{jd.name}' (retries={retries})")
     result = result.model_copy(update={"attempts": attempts})
     return result, captured
 

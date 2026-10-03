@@ -6,12 +6,15 @@ import asyncio
 import contextlib
 import functools
 import os
+import sys
 import time
 from pathlib import Path
 
+from pydantic import ValidationError
 from synmon_contract.models import SCHEMA_VERSION, Heartbeat, Status
 
 from synmon_executor.artifacts import prune_artifacts
+from synmon_executor.config import DEFAULT_ARTIFACT_MAX_AGE_S, ExecutorConfig, describe
 from synmon_executor.core import run_journey_resilient, run_login, unknown_result
 from synmon_executor.discovery import load_journeys
 from synmon_executor.heartbeat import write_heartbeat_atomic
@@ -19,7 +22,6 @@ from synmon_executor.sdk import clear_registry, registered_journeys, registered_
 from synmon_executor.spool import prune_spool, result_filename, write_result_atomic
 
 EXECUTOR = "playwright"
-DEFAULT_ARTIFACT_MAX_AGE_S = 7 * 24 * 3600
 
 
 def _executor_version() -> str:
@@ -183,31 +185,48 @@ async def run_all(
     return hb
 
 
+def _report_invalid_config(exc: ValidationError) -> None:
+    """Without a valid config there is no run, but the worker service must still say why."""
+    message = f"invalid configuration: {describe(exc)}"
+    print(message, file=sys.stderr)
+    now = time.time()
+    hb = Heartbeat(
+        schema_version=SCHEMA_VERSION,
+        worker_id=os.environ.get("SYNMON_WORKER_ID") or os.uname().nodename,
+        executor=EXECUTOR,
+        executor_version=_executor_version(),
+        heartbeat_at=now,
+        last_run_started_at=now,
+        last_run_finished_at=now,
+        last_run_duration_ms=0,
+        run_error=message,
+    )
+    path = os.environ.get("SYNMON_HEARTBEAT_PATH") or "/var/lib/synmon/heartbeat.json"
+    write_heartbeat_atomic(hb, Path(path))
+
+
 def main() -> None:
+    try:
+        config = ExecutorConfig.from_env(os.environ)
+    except ValidationError as exc:
+        _report_invalid_config(exc)
+        raise SystemExit(2) from None
+
     from synmon_executor.playwright_session import browser_session
 
-    worker_id = os.environ.get("SYNMON_WORKER_ID") or os.uname().nodename
-    budget = os.environ.get("SYNMON_RUN_BUDGET_S")
     asyncio.run(
         run_all(
-            journeys_dir=Path(os.environ.get("SYNMON_JOURNEYS_DIR", "/journeys")),
-            spool_dir=Path(os.environ.get("SYNMON_SPOOL_DIR", "/var/lib/synmon/spool")),
-            artifacts_dir=Path(os.environ.get("SYNMON_ARTIFACTS_DIR", "/var/lib/synmon/artifacts")),
-            heartbeat_path=Path(
-                os.environ.get("SYNMON_HEARTBEAT_PATH", "/var/lib/synmon/heartbeat.json")
-            ),
-            worker_id=worker_id,
-            # Traces record typed passwords and session cookies: opt-in for debugging only.
-            browser_session=functools.partial(
-                browser_session, trace=os.environ.get("SYNMON_TRACE") == "1"
-            ),
-            default_retries=int(os.environ.get("SYNMON_RETRIES", "1")),
-            default_timeout_s=float(os.environ.get("SYNMON_TIMEOUT_S", "120")),
-            default_backoff_s=float(os.environ.get("SYNMON_RETRY_BACKOFF_S", "1.0")),
-            run_budget_s=float(budget) if budget else None,
-            artifact_max_age_s=int(
-                os.environ.get("SYNMON_ARTIFACT_MAX_AGE_S", DEFAULT_ARTIFACT_MAX_AGE_S)
-            ),
+            journeys_dir=config.journeys_dir,
+            spool_dir=config.spool_dir,
+            artifacts_dir=config.artifacts_dir,
+            heartbeat_path=config.heartbeat_path,
+            worker_id=config.worker_id,
+            browser_session=functools.partial(browser_session, trace=config.trace),
+            default_retries=config.retries,
+            default_timeout_s=config.timeout_s,
+            default_backoff_s=config.retry_backoff_s,
+            run_budget_s=config.run_budget_s,
+            artifact_max_age_s=config.artifact_max_age_s,
         )
     )
 

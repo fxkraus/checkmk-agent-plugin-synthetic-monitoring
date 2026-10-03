@@ -41,6 +41,11 @@ async def run(page, ctx):
     # credentials come from the environment, never inline
 ```
 
+A `@login(target_host=...)` runs before that host's journeys and hands them its session state;
+each target host can have at most one. Invalid decorator arguments (negative `retries`,
+`max_age_s` or `interval_s`, `timeout_s <= 0`) and a second login for the same host are reported
+as load errors on the worker service instead of running.
+
 ## Web performance
 
 Core Web Vitals (LCP, CLS, INP) and additional timing metrics (FCP, TTFB) are captured

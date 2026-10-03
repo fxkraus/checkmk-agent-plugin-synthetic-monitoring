@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 from pathlib import Path
 
 from synmon_contract.models import Vitals
@@ -38,12 +39,22 @@ def build_init_script(lib_js: str) -> str:
     return f"{lib_js}\n{_BOOTSTRAP}"
 
 
-def to_vitals(snapshot: dict | None) -> Vitals | None:
-    if not snapshot:
+def to_vitals(snapshot: object) -> Vitals | None:
+    """Normalize the page's ``window.__synmon_vitals``.
+
+    The page controls that value, so this never raises: anything but finite non-negative numbers
+    is dropped (a crash here would turn the journey's real result into an executor error).
+    """
+    if not isinstance(snapshot, dict):
         return None
-    fields = {
-        dest: snapshot[src] for src, dest in _KEY_MAP.items() if snapshot.get(src) is not None
-    }
-    if not fields:
-        return None
-    return Vitals(**fields)
+    fields: dict[str, float] = {}
+    for src, dest in _KEY_MAP.items():
+        value = snapshot.get(src)
+        if (
+            isinstance(value, (int, float))
+            and not isinstance(value, bool)
+            and math.isfinite(value)
+            and value >= 0
+        ):
+            fields[dest] = float(value)
+    return Vitals(**fields) if fields else None

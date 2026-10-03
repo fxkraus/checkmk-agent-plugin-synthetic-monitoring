@@ -382,3 +382,26 @@ def test_retry_cut_short_by_budget_keeps_the_observed_failure():
     assert result.status == 2
     assert result.error is not None and result.error.message == "down"
     assert result.attempts == 1
+
+
+class GarbageVitalsSession(FakeSession):
+    async def read_vitals(self):
+        return "not-a-dict"
+
+
+def test_page_controlled_vitals_cannot_mask_a_failure():
+    async def run(page, ctx):  # noqa: ARG001
+        async with ctx.step("submit"):
+            raise RuntimeError("payment failed")
+
+    result = asyncio.run(
+        run_journey(
+            _jd(run),
+            GarbageVitalsSession(),
+            worker_id="w1",
+            executor="playwright",
+            executor_version="1.49.0",
+        )
+    )
+    assert result.status == 2
+    assert result.steps[0].vitals is None

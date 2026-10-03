@@ -40,3 +40,15 @@ def test_bootstrap_uses_in_scope_webvitals_not_only_window():
     # reference the in-scope `webVitals` (with a window fallback), or it bails and captures nothing.
     script = vitals.build_init_script("/*LIBJS*/")
     assert "typeof webVitals" in script
+
+
+def test_to_vitals_never_raises_on_page_controlled_garbage():
+    # window.__synmon_vitals belongs to the monitored page: it can be anything.
+    for bad in ("x", [1, 2], 3, True, {"LCP": "fast"}, {"LCP": float("nan")}, {"LCP": -1}):
+        assert vitals.to_vitals(bad) is None, bad
+
+
+def test_to_vitals_keeps_valid_fields_next_to_garbage():
+    v = vitals.to_vitals({"LCP": 1200, "CLS": "big", "INP": True, "TTFB": float("inf")})
+    assert v is not None and v.lcp_ms == 1200.0
+    assert v.cls is None and v.inp_ms is None and v.ttfb_ms is None

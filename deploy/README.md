@@ -119,6 +119,10 @@ cannot start within the budget are reported UNKNOWN ("skipped") and the worker s
 a journey cut short by the budget (not by its own timeout) is UNKNOWN too, never CRIT,
 instead of the whole run being killed by systemd and every service going stale.
 
+The executor validates every `SYNMON_*` variable before it starts the browser. An invalid value
+(e.g. `SYNMON_RETRIES=-1` or `SYNMON_TIMEOUT_S=0`) aborts the run with a heartbeat whose error
+names the variable, so the worker service goes CRIT instead of silently going stale.
+
 ## Journeys and secrets
 
 - Drop journey modules into the journeys dir (default `/etc/synmon/journeys`); they are mounted

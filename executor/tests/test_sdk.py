@@ -94,3 +94,21 @@ def test_login_registers_and_clear_resets_both():
     assert logins[0].login_id == "signin"
     sdk.clear_registry()
     assert sdk.registered_logins() == [] and sdk.registered_journeys() == []
+
+
+def test_decorators_reject_invalid_arguments():
+    import pytest
+    from synmon_executor.sdk import journey, login
+
+    bad = [
+        {"retries": -1},
+        {"timeout_s": 0},
+        {"max_age_s": -5},
+        {"interval_s": -1},
+    ]
+    for over in bad:
+        args = {"name": "x", "target_host": "h", "max_age_s": 60, "interval_s": 60, **over}
+        with pytest.raises(ValueError):
+            journey(**args)
+        with pytest.raises(ValueError):
+            login(**args)
