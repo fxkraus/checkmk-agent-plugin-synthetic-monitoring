@@ -1,6 +1,6 @@
 # Mirror both images to the internal registry before go-live. uv must match [tool.uv]
 # required-version in pyproject.toml (tests/test_uv_pins.py).
-FROM python:3.12-slim-bookworm@sha256:54c85f3c47607a77f32adec749d3c81d1348bf25833671f512b26a9b6d778cb3
+FROM python:3.12-slim-bookworm@sha256:34386ef0cb081344d7ec1c103ba398e6e9f64e9ab3a1509accc92a4e24a07258
 COPY --from=ghcr.io/astral-sh/uv:0.9.30@sha256:538e0b39736e7feae937a65983e49d2ab75e1559d35041f9878b7b7e51de91e4 /uv /uvx /bin/
 RUN apt-get update \
     && apt-get install -y --no-install-recommends git make ca-certificates \
