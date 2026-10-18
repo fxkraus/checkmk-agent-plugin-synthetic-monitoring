@@ -28,7 +28,7 @@ jobs:
           key: pre-commit-${{ runner.os }}-${{ hashFiles('.pre-commit-config.yaml') }}
 
       - name: Set up uv
-        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7  # v10.2.0
+        uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884  # v10.3.0
 
       # --locked fails the job if uv.lock is out of date with pyproject.toml
       - name: Run pre-commit
@@ -83,7 +83,7 @@ jobs:
       # On main, the MKP is kept as a workflow artifact for each commit.
       - name: Upload MKP
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
         with:
           name: synmon-mkp-${{ github.sha }}
           path: dist/*.mkp
@@ -112,7 +112,7 @@ jobs:
         with:
           persist-credentials: false
       - name: Set up uv
-        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7  # v10.2.0
+        uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884  # v10.3.0
       # The Checkmk image has no uv: hand it the test group with the uv.lock hashes.
       - name: Export test requirements
         run: >-
@@ -221,7 +221,7 @@ jobs:
         run: git switch -C main "$GITHUB_SHA"
 
       - name: Set up uv
-        uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7  # v10.2.0
+        uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884  # v10.3.0
 
       # From uv.lock (hash-checked), not the semantic-release action, whose image pip-installs
       # unpinned dependencies at run time.
